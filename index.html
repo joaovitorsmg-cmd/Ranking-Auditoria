@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Ranking Geral de Auditorias — AGROQUIMA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+<!-- Credenciais publicadas (preenchidas ao clicar em "Publicar para todos") -->
+<style>
+:root{
+  --bg:#0a1322;--bg2:#101d33;--bg3:#16243d;
+  --text:#e8f0fb;--text2:#8ba2c2;--text3:#54667f;
+  --border:#1a2c47;--border2:#27406a;
+  --brand:#2b7fd4;--brand2:#4d96e0;--brand-lt:#0c2a4d;--brand-glow:rgba(43,127,212,.2);--brand-dk:#9cc4ec;
+  --red:#e25c4d;--red-lt:#2a1110;--red-dk:#f08a7e;
+  --green:#35b87a;--green-lt:#0c2417;--green-dk:#5fd4a0;
+  --amber:#e0a73a;--amber-lt:#2a1f08;--amber-dk:#f2c451;
+  --gray:#8696ab;
+  --r:10px;--r-sm:6px;--r-lg:14px;
+  --sh:0 1px 3px rgba(0,0,0,.4);--sh-md:0 6px 18px rgba(0,0,0,.5);
+  --fonte:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  --ouro:#f2c451;--prata:#b8c4d0;--bronze:#cd7f32;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--fonte);background:var(--bg);color:var(--text);font-size:14px;min-height:100vh;}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--brand)}
+
+#topo{background:var(--bg);border-bottom:1px solid var(--border);padding:0 24px;
+  display:flex;align-items:center;gap:16px;height:62px;position:sticky;top:0;z-index:200;box-shadow:0 4px 24px rgba(0,0,0,.5);}
+.logo-box{width:42px;height:42px;border-radius:9px;overflow:hidden;flex-shrink:0;box-shadow:0 2px 10px var(--brand-glow);}
+.logo-box img{width:100%;height:100%;object-fit:cover;}
+#topo-mid{flex:1;}
+#topo-titulo{font-size:13px;font-weight:700;color:var(--text);}
+#topo-sub{font-size:11px;color:var(--text2);margin-top:1px;}
+.topo-btns{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+.btn-topo{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:var(--r-sm);
+  font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:var(--bg);color:var(--text);transition:.15s;white-space:nowrap;}
+.btn-topo:hover{background:var(--bg2);border-color:var(--brand);}
+.btn-topo.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));border-color:transparent;color:#fff;box-shadow:0 2px 8px var(--brand-glow);}
+.btn-topo.primary:hover{filter:brightness(1.06);}
+.btn-topo.danger{color:var(--gray);}
+.btn-topo.danger:hover{background:var(--red-lt);border-color:var(--red);color:var(--red-dk);}
+
+#app{max-width:1500px;margin:0 auto;padding:20px 24px;}
+
+/* ABAS PRINCIPAIS */
+#abas{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:22px;overflow-x:auto;}
+.aba{padding:0 18px;height:44px;display:inline-flex;align-items:center;gap:7px;color:var(--text2);cursor:pointer;
+  font-size:13px;font-weight:600;border-bottom:2px solid transparent;white-space:nowrap;transition:.12s;}
+.aba:hover{color:var(--text);background:var(--bg2);}
+.aba.ativa{color:var(--brand);border-bottom-color:var(--brand);background:var(--brand-lt);}
+
+/* IMPORT */
+#tela-import{text-align:center;padding:40px 20px;}
+.drop-zone{border:2px dashed var(--border2);border-radius:var(--r-lg);padding:40px 32px;background:var(--bg2);
+  cursor:pointer;transition:all .2s;max-width:720px;margin:0 auto 20px;box-shadow:var(--sh-md);}
+.drop-zone.over{border-color:var(--brand);background:var(--brand-lt);}
+.drop-zone h2{font-size:18px;margin-bottom:8px;}
+.drop-zone p{color:var(--text2);font-size:13px;line-height:1.7;}
+.dz-icon{font-size:44px;margin-bottom:12px;}
+.btn-az{display:inline-flex;align-items:center;gap:7px;background:linear-gradient(135deg,var(--brand),var(--brand2));
+  color:#fff;border:none;padding:10px 22px;border-radius:var(--r-sm);font-size:13px;font-weight:700;cursor:pointer;
+  margin-top:14px;box-shadow:0 2px 8px var(--brand-glow);transition:.15s;}
+.btn-az:hover{filter:brightness(1.06);}
+.arqs-wrap{max-width:820px;margin:0 auto;}
+.arq-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;
+  display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+.arq-icon{font-size:20px;flex-shrink:0;}
+.arq-info{flex:1;text-align:left;}
+.arq-nome{font-size:13px;font-weight:700;}
+.arq-meta{font-size:11px;color:var(--text3);margin-top:2px;}
+.arq-tipo{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;}
+.arq-tipo.ped{background:rgba(43,127,212,.15);color:var(--brand-dk);}
+.arq-tipo.venc{background:rgba(224,167,58,.15);color:var(--amber-dk);}
+.arq-tipo.err{background:rgba(226,92,77,.12);color:var(--red-dk);}
+.btn-rm{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px 6px;border-radius:4px;transition:.1s;}
+.btn-rm:hover{background:var(--red-lt);color:var(--red-dk);}
+
+/* SEÇÃO */
+.secao{margin-bottom:24px;}
+.secao-titulo{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);
+  margin:0 0 12px;display:flex;align-items:center;gap:10px;}
+.secao-titulo::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;border-top:3px solid var(--border);}
+.kpi.g{border-top-color:var(--green);} .kpi.g .kv{color:var(--green-dk);}
+.kpi.a{border-top-color:var(--amber);} .kpi.a .kv{color:var(--amber-dk);}
+.kpi.r{border-top-color:var(--red);} .kpi.r .kv{color:var(--red-dk);}
+.kpi.b{border-top-color:var(--brand);} .kpi.b .kv{color:var(--brand-dk);}
+.kl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:8px;}
+.kv{font-size:23px;font-weight:800;letter-spacing:-.5px;}
+.ks{font-size:11px;color:var(--text2);margin-top:5px;}
+
+/* TABELA RANKING */
+.rank-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh-md);}
+.rank-header{background:var(--bg3);color:var(--text3);padding:10px 16px;font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.6px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.rank-table{width:100%;border-collapse:collapse;}
+.rank-table thead th{padding:10px 12px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.3px;color:var(--text3);background:var(--bg3);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap;}
+.rank-table thead th:hover{color:var(--text);}
+.rank-table tbody tr{border-bottom:1px solid var(--border);transition:.1s;}
+.rank-table tbody tr:hover{background:rgba(43,127,212,.08);}
+.rank-table tbody tr.pos1{background:rgba(242,196,81,.06);}
+.rank-table tbody tr.pos2{background:rgba(184,196,208,.04);}
+.rank-table tbody tr.pos3{background:rgba(205,127,50,.04);}
+.rank-table td{padding:10px 12px;font-size:12.5px;vertical-align:middle;}
+
+.pos-badge{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;}
+.pos-badge.ouro{background:rgba(242,196,81,.2);color:var(--ouro);border:1px solid rgba(242,196,81,.5);}
+.pos-badge.prata{background:rgba(184,196,208,.15);color:var(--prata);border:1px solid rgba(184,196,208,.3);}
+.pos-badge.bronze{background:rgba(205,127,50,.15);color:var(--bronze);border:1px solid rgba(205,127,50,.3);}
+.pos-badge.normal{background:var(--bg3);color:var(--text3);border:1px solid var(--border);}
+
+.score-pill{display:inline-block;padding:3px 12px;border-radius:20px;font-size:13px;font-weight:800;}
+.sp-ouro{background:rgba(242,196,81,.15);color:var(--ouro);}
+.sp-verde{background:rgba(95,212,160,.12);color:var(--green-dk);}
+.sp-amar{background:rgba(224,167,58,.12);color:var(--amber-dk);}
+.sp-verm{background:rgba(226,92,77,.12);color:var(--red-dk);}
+.bar-wrap{width:100%;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:3px;}
+.bar-fill{height:100%;border-radius:3px;transition:width .6s;}
+.comp-val{display:inline-block;font-size:11px;font-weight:700;}
+.comp-ok{color:var(--green-dk);} .comp-warn{color:var(--amber-dk);} .comp-bad{color:var(--red-dk);}
+
+/* selos */
+.selo{display:inline-block;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;margin-left:4px;vertical-align:middle;}
+.selo-reinc{background:var(--red-lt);color:var(--red-dk);border:1px solid rgba(226,92,77,.3);}
+.selo-velho{background:rgba(134,150,171,.12);color:var(--gray);border:1px solid var(--border2);}
+.selo-bonus{background:rgba(95,212,160,.12);color:var(--green-dk);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:26px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.modal-title{font-size:15px;font-weight:800;margin-bottom:4px;}
+.modal-sub{font-size:12px;color:var(--text2);margin-bottom:18px;}
+.fat-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px;background:var(--bg3);border-radius:6px;}
+.fat-row-nome{flex:1;font-size:13px;font-weight:600;}
+.fat-row input{background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:7px 10px;font-size:13px;width:150px;text-align:right;}
+.fat-row input:focus{outline:none;border-color:var(--brand);}
+.btn-modal{padding:9px 18px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;}
+.btn-modal.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));border:none;color:#fff;}
+.btn-modal.sec{background:var(--bg);border:1px solid var(--border);color:var(--text);}
+
+.metod{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:20px;}
+.metod strong{color:var(--text);}
+.metod-items{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;}
+.metod-item{display:flex;align-items:center;gap:6px;font-size:11px;}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+.premio-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:20px;}
+.premio-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px 16px;display:flex;align-items:center;gap:12px;}
+.premio-medal{font-size:28px;}
+.premio-info{flex:1;}
+.premio-pos{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);}
+.premio-nome{font-size:13px;font-weight:700;color:var(--text);margin-top:2px;}
+.premio-score{font-size:20px;font-weight:800;}
+
+.filtros-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+.sel-sm{background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:12px;cursor:pointer;}
+.sel-sm:focus{outline:none;border-color:var(--brand);}
+.busca{background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 12px;font-size:12px;min-width:180px;}
+.busca:focus{outline:none;border-color:var(--brand);}
+
+.periodo-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+.ptag{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:var(--bg2);color:var(--text2);transition:.12s;}
+.ptag:hover,.ptag.ativo{background:var(--brand-lt);border-color:var(--brand);color:var(--brand-dk);}
+
+.info-bar{background:rgba(43,127,212,.1);border:1px solid rgba(43,127,212,.3);border-radius:8px;padding:10px 16px;font-size:12px;color:var(--brand-dk);margin-bottom:16px;line-height:1.6;}
+.cobertura-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.cob-chip{font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;}
+.cob-ok{background:var(--green-lt);color:var(--green-dk);}
+.cob-falta{background:var(--bg3);color:var(--text3);border:1px dashed var(--border2);}
+
+.hidden{display:none!important;}
+th.sorted-asc::after{content:' ↑'} th.sorted-desc::after{content:' ↓'}
+.obs-input{background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 8px;font-size:11px;width:100%;min-width:120px;}
+.obs-input:focus{outline:none;border-color:var(--brand);}
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:20px;}
+.chart-title{font-size:13px;font-weight:700;margin-bottom:14px;}
+canvas{max-width:100%;}
+
+/* Certificado */
+#cert-render{background:#fff;color:#1a2e4a;width:1000px;padding:60px;font-family:Georgia,serif;}
+</style>
+</head>
+<body>
+
+<div id="topo">
+  <div class="logo-box">
+    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='8' fill='%232b7fd4'/%3E%3Ctext x='50%25' y='55%25' text-anchor='middle' dominant-baseline='middle' font-size='18' font-weight='900' fill='white' font-family='Arial'%3EAQ%3C/text%3E%3C/svg%3E" alt="AQ">
+  </div>
+  <div id="topo-mid">
+    <div id="topo-titulo">🏆 Ranking Geral de Auditorias — AGROQUIMA</div>
+    <div id="topo-sub">Consolida Pedido/Canhoto, Sementes e Vencidos para premiação de filiais</div>
+  </div>
+  <div id="sync-indicator" style="display:inline-flex;align-items:center;padding:5px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--border);margin-right:4px;" title="Status da sincronização com a nuvem">☁ <span style="font-size:11px;margin-left:4px;color:var(--text3);">Sem sync</span></div>
+  <div class="topo-btns">
+    <button class="btn-topo" onclick="abrirModalFaturamento()" title="Informar faturamento para o score de vencidos">💰 Faturamentos</button>
+    <button class="btn-topo" onclick="requirePwd('Sincronizar com a nuvem','Digite a senha de operador para publicar os dados na nuvem.',syncPush)" title="Publicar dados na nuvem (JSONBin)">☁ Publicar</button>
+    <button class="btn-topo" onclick="abrirAbaConfig()" title="Configurar nuvem JSONBin e parâmetros">⚙ Configurações</button>
+    <button class="btn-topo primary" onclick="exportarRankingXLS()">📥 Exportar (.xlsx)</button>
+    <button class="btn-topo" onclick="salvarRankingJSON()">💾 Salvar (.json)</button>
+    <button class="btn-topo" onclick="requirePwd('Carregar dados','Digite a senha de operador para carregar dados.',()=>document.getElementById('inp-backup').click())">📂 Carregar (.json)</button>
+    <button class="btn-topo danger" onclick="requirePwd('Limpar tudo','Digite a senha de operador para limpar todos os dados.',limparTudo)">✕ Limpar</button>
+  </div>
+  <input type="file" id="inp-import" accept=".json,.xlsx,.xls" multiple style="display:none;" onchange="processarArquivosImportados(this)">
+  <input type="file" id="inp-backup" accept=".json" style="display:none;" onchange="lerBackupJSON(this)">
+</div>
+
+<!-- MODAL SENHA -->
+<div class="modal-overlay hidden" id="modal-pwd">
+  <div class="modal-box" style="width:400px;">
+    <div class="modal-title" style="display:flex;align-items:center;gap:10px;">🔒 <span id="pwd-title">Confirmar acesso</span></div>
+    <p style="margin:6px 0 14px;font-size:13px;color:var(--text2);line-height:1.6;" id="pwd-desc">Digite a senha de operador para continuar.</p>
+    <input type="password" id="pwd-input" placeholder="Senha" autocomplete="off"
+      style="width:100%;padding:11px 14px;border:1px solid var(--border2);border-radius:6px;background:var(--bg3);color:var(--text);font-size:15px;"
+      onkeydown="if(event.key==='Enter')submitPwd();">
+    <div id="pwd-error" style="display:none;color:var(--red-dk);font-size:12px;margin-top:8px;font-weight:600;">⚠ Senha incorreta. Tente novamente.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">
+      <button class="btn-modal sec" onclick="cancelPwd()">Cancelar</button>
+      <button class="btn-modal primary" onclick="submitPwd()">🔓 Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FATURAMENTO -->
+<div class="modal-overlay hidden" id="modal-fat">
+  <div class="modal-box">
+    <div class="modal-title">💰 Faturamento das Filiais</div>
+    <div class="modal-sub">O faturamento é preenchido automaticamente ao importar o <strong>relatório de Resumo CFOP</strong> (soma das vendas por filial, CFOPs de venda). Você pode ajustar manualmente. Sem faturamento, assume-se 100% no componente de Vencidos.</div>
+    <div id="fat-rows"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn-modal sec" onclick="fecharModal('modal-fat')">Cancelar</button>
+      <button class="btn-modal primary" onclick="salvarFaturamentos()">✔ Salvar e Recalcular</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIG -->
+<div class="modal-overlay hidden" id="modal-config">
+  <div class="modal-box">
+    <div class="modal-title">⚙ Configurações do Ranking</div>
+    <div class="modal-sub">Parâmetros usados no cálculo e nos certificados.</div>
+    <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;">Data da Premiação (Convenção ADM)</label>
+    <input id="cfg-data-premio" type="text" placeholder="Ex: 15/12/2026" style="width:100%;margin:6px 0 16px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);">
+    <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;">Ano de Referência do Ranking Anual</label>
+    <input id="cfg-ano" type="number" placeholder="2026" style="width:100%;margin:6px 0 16px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);">
+    <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;">Teto do Bônus de Volume (pts)</label>
+    <input id="cfg-bonus" type="number" step="0.5" value="5" style="width:100%;margin:6px 0 16px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);">
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-modal sec" onclick="fecharModal('modal-config')">Cancelar</button>
+      <button class="btn-modal primary" onclick="salvarConfig()">✔ Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CERTIFICADO (oculto, usado para render) -->
+<div style="position:fixed;left:-9999px;top:0;"><div id="cert-render"></div></div>
+
+<div id="app">
+
+  <!-- TELA IMPORT -->
+  <div id="tela-import">
+    <div class="drop-zone" id="drop-zone" ondrop="onDrop(event)" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" onclick="triggerImport()">
+      <div class="dz-icon">🏆</div>
+      <h2>Importar Arquivos de Auditoria</h2>
+      <p>Arraste ou clique para selecionar os arquivos exportados pelos painéis das filiais:<br>
+      <strong>Pedido/Canhoto</strong> (inclui Sementes) → <code>.json</code> do botão "Salvar Histórico"<br>
+      <strong>Vencidos</strong> → <code>.json</code> do botão "Exportar p/ Ranking"<br>
+      <strong>Faturamento</strong> → <code>.xls</code> do relatório de Resumo CFOP (preenche o faturamento das filiais automaticamente)<br><br>
+      Regional, Auditor e Porte são preenchidos automaticamente pela base de filiais.<br>
+      <span style="color:var(--amber-dk);font-size:12px;">🔒 Importar e editar dados exige a senha de operador.</span></p>
+      <button class="btn-az" onclick="event.stopPropagation();triggerImport()">📂 Selecionar Arquivos</button>
+    </div>
+    <div class="arqs-wrap" id="arqs-wrap"></div>
+    <div id="btn-processar-wrap" class="hidden" style="text-align:center;margin-top:16px;">
+      <button class="btn-az" onclick="processarERenderizar()" style="font-size:14px;padding:12px 32px;">⚡ Gerar Ranking</button>
+    </div>
+  </div>
+
+  <!-- PAINEL -->
+  <div id="painel" class="hidden">
+    <div id="abas">
+      <div class="aba ativa" onclick="mudarAba('anual')" id="aba-anual">🏆 Ranking Anual</div>
+      <div class="aba" onclick="mudarAba('periodo')" id="aba-periodo">📅 Por Período</div>
+      <div class="aba" onclick="mudarAba('regional')" id="aba-regional">🗺 Por Regional</div>
+      <div class="aba" onclick="mudarAba('evolucao')" id="aba-evolucao">📈 Evolução</div>
+      <div class="aba" onclick="mudarAba('cobertura')" id="aba-cobertura">✅ Cobertura</div>
+      <div class="aba" onclick="mudarAba('config')" id="aba-config" style="margin-left:auto;">⚙ Configurações</div>
+    </div>
+
+    <div id="conteudo-abas"></div>
+  </div>
+</div>
+
+<script>
+// BASE DE FILIAIS EMBUTIDA (Base_regionais.xlsx)
+const BASE_FILIAIS = {"MTZ": {"filial": 1, "loja": "MATRIZ", "estado": "GO", "gerente": "REVALINO NETO", "supervisor": "ERON LUIZ", "regional": "SERGIO ADRIANO", "auditor": "JOÃO VITOR", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "ARG": {"filial": 3, "loja": "ARAGUAÍNA", "estado": "TO", "gerente": "FABIO AUGUSTO", "supervisor": "MAGNO ALVES", "regional": "LEANDRO CAMPOS", "auditor": "CARLOS POGGIAN", "coordenador": "PATRICK LIMA", "regiao": "NORTE"}, "RVD": {"filial": 4, "loja": "RIO VERDE", "estado": "GO", "gerente": "WENDER PARTATA", "supervisor": "NATANIELLE VARGAS", "regional": "WENDER PARTATA", "auditor": "JOÃO VITOR", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "UBR": {"filial": 5, "loja": "UBERLÂNDIA", "estado": "MG", "gerente": "JOÃO CLÁUDIO", "supervisor": "GISELE MARIA", "regional": "NABIO BARROS", "auditor": "JOÃO VITOR", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "MAR": {"filial": 10, "loja": "MARABÁ", "estado": "PA", "gerente": "ENIO JOSAFE", "supervisor": "LUCAS DAMACENO", "regional": "LEANDRO CAMPOS", "auditor": "GUILHERME", "coordenador": "PATRICK LIMA", "regiao": "NORTE"}, "JAT": {"filial": 11, "loja": "JATAI", "estado": "GO", "gerente": "RENATO TEODORO", "supervisor": "LUBIA SILVA", "regional": "WENDER PARTATA", "auditor": "JOÃO VITOR", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "CRI": {"filial": 12, "loja": "CRISTALINA", "estado": "GO", "gerente": "ANDRE FERNANDO", "supervisor": "MARCIA DE OLIVEIRA", "regional": "NABIO BARROS", "auditor": "JOÃO VITOR", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "FAG": {"filial": 13, "loja": "UBS", "estado": "GO", "gerente": "EVANDRO MACEDO", "supervisor": "KARINE GOMES", "regional": "EVANDRO MACEDO", "auditor": "FÁBIO", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "RED": {"filial": 14, "loja": "REDENÇÃO", "estado": "PA", "gerente": "ANDERSON PEREIRA", "supervisor": "BARBARA PEREIRA", "regional": "LEANDRO CAMPOS", "auditor": "CARLOS POGGIAN", "coordenador": "PATRICK LIMA", "regiao": "NORTE"}, "IMP": {"filial": 16, "loja": "IMPERATRIZ", "estado": "MA", "gerente": "IALE MILHOMEM", "supervisor": "ROSIANE CANDIDO", "regional": "LEANDRO CAMPOS", "auditor": "GUILHERME", "coordenador": "PATRICK LIMA", "regiao": "NORTE"}, "BAR": {"filial": 17, "loja": "BARRA DO GARÇAS", "estado": "MT", "gerente": "VINICIUS BRITO", "supervisor": "KARINE SOARES", "regional": "MATO GROSSO", "auditor": "JOÃO VITOR", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "PAL": {"filial": 19, "loja": "PALMAS", "estado": "TO", "gerente": "MARLON GERMANO", "supervisor": "PATRICIA PEREIRA", "regional": "LEANDRO CAMPOS", "auditor": "CARLOS POGGIAN", "coordenador": "PATRICK LIMA", "regiao": "NORTE"}, "MOZ": {"filial": 21, "loja": "MOZARLÂNDIA", "estado": "GO", "gerente": "THIAGO VAZ", "supervisor": "NÚBIA GASPAROTTI", "regional": "SERGIO ADRIANO", "auditor": "JOÃO VITOR", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "PGM": {"filial": 22, "loja": "PARAGOMINAS", "estado": "PA", "gerente": "LORENA MOISES", "supervisor": "ARTHUR  SILVA", "regional": "LEANDRO CAMPOS", "auditor": "GUILHERME", "coordenador": "PATRICK LIMA", "regiao": "NORTE"}, "SFX": {"filial": 23, "loja": "SÃO FELIX DO XINGU", "estado": "PA", "gerente": "PEDRO MACIEL", "supervisor": "LANNA  KEROLAYNE", "regional": "LEANDRO CAMPOS", "auditor": "CARLOS POGGIAN", "coordenador": "PATRICK LIMA", "regiao": "NORTE"}, "FAP": {"filial": 24, "loja": "FABRICA APARECIDA", "estado": "GO", "gerente": "ANNAPAULLA GARCIA", "supervisor": "ANNAPAULLA GARCIA", "regional": "ANNAPAULLA GARCIA", "auditor": "JOÃO VITOR", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "FCB": {"filial": 25, "loja": "CUIABÁ", "estado": "MT", "gerente": "GEOVANNY VIGILATO", "supervisor": "JULIANA LIMA", "regional": "MATO GROSSO", "auditor": "FÁBIO", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "URU": {"filial": 27, "loja": "URUAÇU", "estado": "GO", "gerente": "EDVANDO JOSE", "supervisor": "NIVEA ALVES", "regional": "SERGIO ADRIANO", "auditor": "FÁBIO", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "MOR": {"filial": 28, "loja": "MORRINHOS", "estado": "GO", "gerente": "ABEL HANUN", "supervisor": "PAULA REGINA", "regional": "NABIO BARROS", "auditor": "JOÃO VITOR", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "CON": {"filial": 29, "loja": "CONFRESA", "estado": "MT", "gerente": "AKYLLA OLIVEIRA", "supervisor": "FELIPE ANDRADE", "regional": "MATO GROSSO", "auditor": "CARLOS POGGIAN", "coordenador": "PATRICK LIMA", "regiao": "NORTE"}, "FOR": {"filial": 30, "loja": "FORMOSA", "estado": "GO", "gerente": "DANIEL BARREIRA", "supervisor": "JULIANA MARIA", "regional": "NABIO BARROS", "auditor": "FÁBIO", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "JUS": {"filial": 31, "loja": "JUSSARA", "estado": "GO", "gerente": "CLESIO ALVES", "supervisor": "MARIANNE SAHARA", "regional": "SERGIO ADRIANO", "auditor": "FÁBIO", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "XRA": {"filial": 32, "loja": "XINGUARA", "estado": "PA", "gerente": "WILLIAN ANTIGO", "supervisor": "LEONICE MORAIS", "regional": "LEANDRO CAMPOS", "auditor": "GUILHERME", "coordenador": "PATRICK LIMA", "regiao": "NORTE"}, "POR": {"filial": 34, "loja": "PORANGATU", "estado": "GO", "gerente": "ANTONIO CARLOS", "supervisor": "ALLYNE LUCENA", "regional": "SERGIO ADRIANO", "auditor": "FÁBIO", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "PLA": {"filial": 35, "loja": "PONTES E LACERDA", "estado": "MT", "gerente": "MARCELO MULLER", "supervisor": "RENATA COSTA", "regional": "MATO GROSSO", "auditor": "FÁBIO", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "GRA": {"filial": 36, "loja": "GOIANIRA", "estado": "GO", "gerente": "HENISLEY SABINO", "supervisor": "HENISLEY SABINO", "regional": "HENISLEY SABINO", "auditor": "FÁBIO", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "CAN": {"filial": 37, "loja": "CANARANA", "estado": "MT", "gerente": "LEONARDO FREITAS", "supervisor": "INGRID KAROLAYNE", "regional": "MATO GROSSO", "auditor": "JOÃO VITOR", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "GUR": {"filial": 38, "loja": "GURUPI", "estado": "TO", "gerente": "FREDERICO CARRIJO", "supervisor": "RENATA  CERQUEIRA", "regional": "SERGIO ADRIANO", "auditor": "FÁBIO", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "RIA": {"filial": 40, "loja": "RIALMA", "estado": "GO", "gerente": "NATALINO NETO", "supervisor": "ROSILDA CURSINO", "regional": "SERGIO ADRIANO", "auditor": "FÁBIO", "coordenador": "ADRIANO SANTOS", "regiao": "SUL"}, "ALT": {"filial": 41, "loja": "ALTAMIRA", "estado": "PA", "gerente": "DAVID DOURADO", "supervisor": "JOSIMARA CABRAL", "regional": "LEANDRO CAMPOS", "auditor": "GUILHERME", "coordenador": "PATRICK LIMA", "regiao": "NORTE"}};
+
+// ============================================================
+// O restante do JS é injetado abaixo
+// ============================================================
+// ============================================================
+// ESTADO GLOBAL
+// ============================================================
+let ARQUIVOS = [];        // arquivos importados
+let FATURAMENTOS = {};    // { sigla: valor }  (resultado final usado no score)
+let FAT_ACUM = {};        // { sigla: {valor, chaves:Set, periodoInicio, periodoFim, importadoEm, linhas} }
+let OBSERVACOES = {};     // { chave: texto }
+let REGISTROS = [];       // todos os registros período a período (mesclados)
+let CONFIG = { dataPremio:'', ano: new Date().getFullYear(), tetoBonus: 5 };
+let ABA_ATUAL = 'anual';
+let SORT_STATE = { col:'scoreFinal', asc:false };
+let chartEvol = null;
+
+// ============================================================
+// ENRIQUECER COM BASE DE FILIAIS
+// ============================================================
+function infoFilial(sigla) {
+  const s = String(sigla||'').trim().toUpperCase();
+  return BASE_FILIAIS[s] || null;
+}
+
+// ============================================================
+// IMPORTAÇÃO DE ARQUIVOS
+// ============================================================
+function triggerImport(){
+  requirePwd('Importar arquivos','Digite a senha de operador para importar dados.',()=>{
+    document.getElementById('inp-import').click();
+  });
+}
+function processarArquivosImportados(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  Promise.all(files.map(f => lerArquivo(f))).then(results => {
+    results.forEach(r => {
+      if (!r) return;
+      const ex = ARQUIVOS.find(a => a.nome === r.nome);
+      if (ex) Object.assign(ex, r); else ARQUIVOS.push(r);
+    });
+    renderArquivos();
+    input.value = '';
+    if (REGISTROS.length && getBinId() && getMasterKey()) { processarERenderizar(); }
+  });
+}
+
+function lerArquivo(file) {
+  return new Promise(resolve => {
+    const nome = file.name;
+    const lower = nome.toLowerCase();
+    if (lower.endsWith('.json')) {
+      const r = new FileReader();
+      r.onload = e => {
+        try { resolve(identificarTipo(nome, JSON.parse(e.target.result))); }
+        catch(err){ resolve({id:Date.now()+Math.random(),nome,tipo:'err',erro:'JSON inválido',dados:null}); }
+      };
+      r.readAsText(file);
+    } else if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+      const r = new FileReader();
+      r.onload = e => {
+        try {
+          const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:false});
+          if (wb.SheetNames.includes('Backup JSON')) {
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets['Backup JSON'], {header:1,defval:''});
+            const j = rows[1] && rows[1][0];
+            if (j && String(j).trim().startsWith('[')) { resolve(identificarTipo(nome, JSON.parse(j))); return; }
+          }
+          if (wb.SheetNames.includes('Lançamentos')) {
+            const raw = XLSX.utils.sheet_to_json(wb.Sheets['Lançamentos'], {defval:''});
+            resolve(identificarTipo(nome, raw)); return;
+          }
+          // Detectar relatório de Resumo CFOP (faturamento)
+          const ws0 = wb.Sheets[wb.SheetNames[0]];
+          const matrix = XLSX.utils.sheet_to_json(ws0, {header:1, defval:'', raw:true});
+          if (ehRelatorioCFOP(matrix)) {
+            resolve(parsearFaturamentoCFOP(nome, matrix, wb)); return;
+          }
+          resolve({id:Date.now()+Math.random(),nome,tipo:'err',erro:'Estrutura não reconhecida',dados:null});
+        } catch(err){ resolve({id:Date.now()+Math.random(),nome,tipo:'err',erro:err.message,dados:null}); }
+      };
+      r.readAsArrayBuffer(file);
+    } else {
+      resolve({id:Date.now()+Math.random(),nome,tipo:'err',erro:'Use .json ou .xlsx',dados:null});
+    }
+  });
+}
+
+function identificarTipo(nome, raw) {
+  const id = Date.now() + Math.random();
+  const arr = Array.isArray(raw) ? raw : [raw];
+  if (!arr.length) return {id,nome,tipo:'err',erro:'Arquivo vazio',dados:null};
+  const first = arr[0] || {};
+  // VENCIDOS
+  if (first.tipo === 'VENCIDOS_AUDT' || ('valorVencidos' in first && 'totalVencidos' in first)) {
+    return {id,nome,tipo:'venc',dados:arr};
+  }
+  // PEDIDO/CANHOTO
+  if ('pedConf' in first || 'canConf' in first) {
+    return {id,nome,tipo:'ped',dados:arr};
+  }
+  // fallback pelo nome
+  const up = nome.toUpperCase();
+  if (up.includes('VENC')) return {id,nome,tipo:'venc',dados:arr};
+  if (up.includes('PEDIDO')||up.includes('CANHOTO')||up.includes('HISTORICO')||up.includes('ACUMULADOR')) return {id,nome,tipo:'ped',dados:arr};
+  return {id,nome,tipo:'err',erro:'Tipo não identificado',dados:raw};
+}
+
+// ============================================================
+// FATURAMENTO via RELATÓRIO DE RESUMO CFOP
+// ============================================================
+// CFOPs considerados venda real (mesma regra do painel de lotes)
+const CFOP_VENDA = new Set(['5101','5102','5120','5405','6101','6102','5922','6922']);
+
+// Detecta se a matriz é o relatório de Resumo CFOP pelo cabeçalho
+function ehRelatorioCFOP(matrix) {
+  if (!matrix || !matrix.length) return false;
+  const hdr = matrix[0].map(c => String(c||'').trim().toLowerCase());
+  const tem = (txt) => hdr.some(h => h.includes(txt));
+  return tem('filial') && tem('emiss') && tem('cfop') && (tem('vlr. prod') || tem('vlr prod') || tem('vlr.prod'));
+}
+
+// Localiza índice de coluna pelo nome (tolerante)
+function _colIdx(hdr, ...nomes) {
+  const h = hdr.map(c => String(c||'').trim().toLowerCase());
+  for (const n of nomes) {
+    const i = h.findIndex(x => x.includes(n));
+    if (i >= 0) return i;
+  }
+  return -1;
+}
+
+// Converte serial Excel para Date
+function _excelToDate(serial) {
+  if (typeof serial !== 'number' || serial <= 0) return null;
+  // Excel epoch: 30/12/1899
+  const ms = Math.round((serial - 25569) * 86400 * 1000);
+  const d = new Date(ms);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function _cfopNum(v) {
+  return String(v||'').trim().split('-')[0].trim().split(' ')[0].trim();
+}
+
+function parsearFaturamentoCFOP(nome, matrix, wb) {
+  const id = Date.now() + Math.random();
+  const hdr = matrix[0];
+  const iFilial = _colIdx(hdr, 'filial');
+  const iEmissao = _colIdx(hdr, 'emiss');
+  const iCfop = _colIdx(hdr, 'cfop');
+  const iVlr = _colIdx(hdr, 'vlr. prod', 'vlr prod', 'vlr.prod');
+  const iNota = _colIdx(hdr, 'n° nota', 'nota');
+  const iProd = _colIdx(hdr, 'cod.produto', 'cod produto', 'cod.prod');
+
+  if (iFilial<0 || iVlr<0 || iCfop<0) {
+    return {id, nome, tipo:'err', erro:'Relatório CFOP sem colunas esperadas (Filial/CFOP/Vlr.Prod)', dados:null};
+  }
+
+  const linhas = [];      // cada linha de venda com chave de unicidade
+  const porFilial = {};   // soma temporária só para preview
+  let dMin = null, dMax = null;
+  let ignoradasCfop = 0;
+
+  for (let r = 1; r < matrix.length; r++) {
+    const row = matrix[r];
+    if (!row || row.length === 0) continue;
+    const filial = String(row[iFilial]||'').trim().toUpperCase();
+    if (!filial) continue;
+    const cfop = _cfopNum(row[iCfop]);
+    if (!CFOP_VENDA.has(cfop)) { ignoradasCfop++; continue; }
+    const vlr = parseFloat(row[iVlr]) || 0;
+    const emiSerial = row[iEmissao];
+    const dt = _excelToDate(typeof emiSerial==='number'?emiSerial:NaN);
+    if (dt) { if(!dMin||dt<dMin) dMin=dt; if(!dMax||dt>dMax) dMax=dt; }
+
+    // chave de unicidade: nota + produto + cfop + emissão + valor (normalizados)
+    const _norm = (v) => {
+      if (v === null || v === undefined || v === '') return '';
+      const n = parseFloat(v);
+      // se for número inteiro (nota, produto), remove decimais; senão mantém 2 casas
+      if (!isNaN(n)) return Number.isInteger(n) ? String(n) : n.toFixed(2);
+      return String(v).trim();
+    };
+    const chave = [
+      iNota>=0?_norm(row[iNota]):'',
+      iProd>=0?_norm(row[iProd]):'',
+      cfop,
+      _norm(emiSerial),
+      _norm(vlr)
+    ].join('|');
+
+    linhas.push({ filial, vlr, chave });
+    porFilial[filial] = (porFilial[filial]||0) + vlr;
+  }
+
+  return {
+    id, nome, tipo:'fat',
+    linhas,                       // dados brutos para acumular com dedup
+    porFilial,                    // preview
+    periodoInicio: dMin ? dMin.toLocaleDateString('pt-BR') : '',
+    periodoFim:   dMax ? dMax.toLocaleDateString('pt-BR') : '',
+    importadoEm: new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+    qtdLinhas: linhas.length,
+    ignoradasCfop,
+    dados: linhas,                // para o renderArquivos contar
+  };
+}
+
+
+function renderArquivos() {
+  const wrap = document.getElementById('arqs-wrap');
+  const btn = document.getElementById('btn-processar-wrap');
+  const validos = ARQUIVOS.filter(a => a.tipo !== 'err');
+  if (!ARQUIVOS.length) { wrap.innerHTML=''; btn.classList.add('hidden'); return; }
+  btn.classList.toggle('hidden', validos.length===0);
+  wrap.innerHTML = ARQUIVOS.map(a => {
+    const cls = a.tipo==='ped'?'ped':a.tipo==='venc'?'venc':a.tipo==='fat'?'venc':'err';
+    const lbl = a.tipo==='ped'?'📋 Pedido/Canhoto':a.tipo==='venc'?'📦 Vencidos':a.tipo==='fat'?'💰 Faturamento':'⚠ Erro';
+    const icon = a.tipo==='ped'?'📋':a.tipo==='venc'?'📦':a.tipo==='fat'?'💰':'❌';
+    let meta;
+    if (a.tipo==='err') meta = a.erro;
+    else if (a.tipo==='fat') {
+      const nFil = Object.keys(a.porFilial||{}).length;
+      meta = `${nFil} filial(is) · ${a.qtdLinhas} vendas · período ${a.periodoInicio||'?'} a ${a.periodoFim||'?'} · importado ${a.importadoEm}`;
+    } else {
+      const qtd = a.dados ? a.dados.length : 0;
+      meta = `${qtd} registro${qtd!==1?'s':''}`;
+    }
+    return `<div class="arq-card">
+      <div class="arq-icon">${icon}</div>
+      <div class="arq-info"><div class="arq-nome">${a.nome}</div><div class="arq-meta">${meta}</div></div>
+      <span class="arq-tipo ${cls}">${lbl}</span>
+      <button class="btn-rm" onclick="removerArquivo('${a.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function removerArquivo(id) {
+  requirePwd('Excluir arquivo','Digite a senha de operador para excluir este dado.',()=>{
+    ARQUIVOS = ARQUIVOS.filter(a => String(a.id)!==String(id));
+    renderArquivos();
+    if (REGISTROS.length) processarERenderizar();
+    if (getBinId() && getMasterKey()) syncPush();
+  });
+}
+
+function onDragOver(e){e.preventDefault();document.getElementById('drop-zone').classList.add('over');}
+function onDragLeave(e){document.getElementById('drop-zone').classList.remove('over');}
+function onDrop(e){
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('over');
+  const files = Array.from(e.dataTransfer.files);
+  if(!files.length) return;
+  requirePwd('Importar arquivos','Digite a senha de operador para importar dados.',()=>{
+    const inp = document.getElementById('inp-import');
+    const dt = new DataTransfer();
+    files.forEach(f=>dt.items.add(f));
+    inp.files = dt.files;
+    processarArquivosImportados(inp);
+  });
+}
+
+// ============================================================
+// SCORE
+// ============================================================
+function calcScoreVenc(valorVencidos, faturamento) {
+  if (!faturamento || faturamento<=0) return 100;
+  const pct = (valorVencidos/faturamento)*100;
+  if (pct===0) return 100;
+  if (pct<=0.05) return 95;
+  if (pct<=0.1) return 85;
+  if (pct<=0.25) return 70;
+  if (pct<=0.5) return 55;
+  if (pct<=1.0) return 35;
+  if (pct<=2.0) return 15;
+  return 0;
+}
+
+// Score base + componentes
+function calcScoreBase(r) {
+  const sSem  = r.temPed ? ((r.semPend===0)?40:0) : 0;
+  const sPed  = (r.temPed && r.pedConf>0) ? Math.min(r.pctPed/95,1)*30 : 0;
+  const sVenc = r.temVenc ? (calcScoreVenc(r.valorVencidos, r.faturamento||0)/100)*20 : (r.temPed?20:0);
+  const sCan  = (r.temPed && r.canConf>0) ? Math.min(r.pctCan/95,1)*10 : 0;
+  return {
+    sSem,
+    sPed: Math.round(sPed*10)/10,
+    sVenc: Math.round(sVenc*10)/10,
+    sCan: Math.round(sCan*10)/10,
+    base: Math.round((sSem+sPed+sVenc+sCan)*100)/100,
+  };
+}
+
+// ============================================================
+// PROCESSAR: MESCLAR PED + VENC POR FILIAL+PERIODO
+// ============================================================
+function _regVazio(sigla, periodo) {
+  const info = infoFilial(sigla) || {};
+  return {
+    filial: sigla, filialNome: info.loja||sigla, gerente: info.gerente||'',
+    regional: info.regional||'—', auditor: info.auditor||'—', coordenador: info.coordenador||'—',
+    supervisor: info.supervisor||'—', estado: info.estado||'', regiao: info.regiao||'', periodo,
+    temPed:false, temVenc:false,
+    pedConf:0,pedAss:0,pedPend:0,pctPed:0,semPend:0,
+    canConf:0,canAss:0,canPend:0,pctCan:0,
+    totalLotes:0,totalVencidos:0,valorVencidos:0,semGiroProd:0,
+    faturamento:0,pctVencFat:null,
+    sSem:0,sPed:0,sVenc:0,sCan:0,base:0,bonus:0,scoreFinal:0,
+    dataAuditoria:'',
+  };
+}
+
+function acumularFaturamento() {
+  // Reconstrói FAT_ACUM a partir de todos os arquivos tipo 'fat' (com dedup por chave)
+  FAT_ACUM = {};
+  ARQUIVOS.filter(a => a.tipo === 'fat' && a.linhas).forEach(arq => {
+    arq.linhas.forEach(ln => {
+      const f = ln.filial;
+      if (!FAT_ACUM[f]) FAT_ACUM[f] = { valor:0, chaves:new Set(), periodoInicio:'', periodoFim:'', importadoEm:'', linhas:0, arquivos:[] };
+      const acc = FAT_ACUM[f];
+      // dedup: confronta a chave completa da linha de venda
+      if (acc.chaves.has(ln.chave)) return; // duplicada → ignora
+      acc.chaves.add(ln.chave);
+      acc.valor += ln.vlr;
+      acc.linhas++;
+    });
+    // registra metadados de período por filial coberta neste arquivo
+    Object.keys(arq.porFilial||{}).forEach(f => {
+      if (!FAT_ACUM[f]) return;
+      const acc = FAT_ACUM[f];
+      // período = menor início / maior fim entre os arquivos
+      if (arq.periodoInicio && (!acc.periodoInicio || _dataMenor(arq.periodoInicio, acc.periodoInicio))) acc.periodoInicio = arq.periodoInicio;
+      if (arq.periodoFim && (!acc.periodoFim || _dataMaior(arq.periodoFim, acc.periodoFim))) acc.periodoFim = arq.periodoFim;
+      if (arq.importadoEm && (!acc.importadoEm || arq.importadoEm > acc.importadoEm)) acc.importadoEm = arq.importadoEm;
+      if (!acc.arquivos.includes(arq.nome)) acc.arquivos.push(arq.nome);
+    });
+  });
+  // Joga para FATURAMENTOS (valor final por filial) — só se houver dado de faturamento
+  Object.entries(FAT_ACUM).forEach(([f, acc]) => {
+    if (acc.valor > 0) FATURAMENTOS[f] = Math.round(acc.valor*100)/100;
+  });
+}
+
+function _dataMenor(a,b){ return _toDate(a) < _toDate(b); }
+function _dataMaior(a,b){ return _toDate(a) > _toDate(b); }
+function _toDate(s){ const p=String(s).split('/'); return new Date(+p[2],+p[1]-1,+p[0]); }
+
+function processarERenderizar() {
+  acumularFaturamento();
+  const map = {};
+
+  ARQUIVOS.filter(a=>a.tipo==='ped'&&a.dados).forEach(arq => {
+    arq.dados.forEach(d => {
+      if (!d.filial) return;
+      const periodo = d.periodo || '';
+      const chave = (d.filial+'|'+periodo).toUpperCase();
+      if (!map[chave]) map[chave] = _regVazio(d.filial, periodo);
+      const r = map[chave];
+      r.temPed=true;
+      r.pedConf=+d.pedConf||0; r.pedAss=+d.pedAss||0; r.pedPend=+d.pedPend||0; r.pctPed=+d.pctPed||0;
+      r.semPend=+d.semPend||0;
+      r.canConf=+d.canConf||0; r.canAss=+d.canAss||0; r.canPend=+d.canPend||0; r.pctCan=+d.pctCan||0;
+      if (d.gerente) r.gerente = r.gerente||d.gerente;
+    });
+  });
+
+  ARQUIVOS.filter(a=>a.tipo==='venc'&&a.dados).forEach(arq => {
+    arq.dados.forEach(d => {
+      const filial = d.filial||'';
+      const periodo = d.mes||d.periodo||'';
+      if (!filial) return;
+      const chave = (filial+'|'+periodo).toUpperCase();
+      if (!map[chave]) map[chave] = _regVazio(filial, periodo);
+      const r = map[chave];
+      r.temVenc=true;
+      r.totalLotes=+d.totalLotes||0; r.totalVencidos=+d.totalVencidos||0;
+      r.valorVencidos=+d.valorVencidos||0; r.semGiroProd=+d.semGiroProd||0;
+      r.dataAuditoria = d.dataAuditoria||r.dataAuditoria;
+      // Se o arquivo trouxe dados da base (v1.1+), usa-os como reforço
+      if (d.regional && r.regional==='—') r.regional = d.regional;
+      if (d.auditor && r.auditor==='—') r.auditor = d.auditor;
+      if (d.coordenador && r.coordenador==='—') r.coordenador = d.coordenador;
+      if (d.gerente && !r.gerente) r.gerente = d.gerente;
+      if (d.filialNome && r.filialNome===r.filial) r.filialNome = d.filialNome;
+      if (d.faturamento>0) r.faturamento=d.faturamento;
+    });
+  });
+
+  // Aplicar faturamento manual + calcular scores base
+  Object.values(map).forEach(r => {
+    if (!r.faturamento && FATURAMENTOS[r.filial.toUpperCase()]) r.faturamento = FATURAMENTOS[r.filial.toUpperCase()];
+    if (r.temVenc) r.pctVencFat = r.faturamento>0 ? (r.valorVencidos/r.faturamento)*100 : null;
+    const sc = calcScoreBase(r);
+    Object.assign(r, sc);
+    // observação
+    const chaveObs = (r.filial+'|'+r.periodo).toUpperCase();
+    r.obs = OBSERVACOES[chaveObs] || '';
+  });
+
+  REGISTROS = Object.values(map);
+
+  // BÔNUS DE VOLUME — por período (relativo à maior filial do mesmo período)
+  const porPeriodo = {};
+  REGISTROS.forEach(r => { (porPeriodo[r.periodo] = porPeriodo[r.periodo]||[]).push(r); });
+  Object.values(porPeriodo).forEach(regs => {
+    const maxVol = Math.max(...regs.map(r => (r.canConf+r.pedConf)), 1);
+    regs.forEach(r => {
+      const vol = r.canConf + r.pedConf;
+      r.bonus = maxVol>0 ? Math.round((vol/maxVol)*CONFIG.tetoBonus*10)/10 : 0;
+      r.scoreFinal = Math.round((r.base + r.bonus)*100)/100;
+    });
+  });
+
+  // REINCIDÊNCIA de vencidos (≥2 auditorias do ano com vencidos)
+  const vencPorFilial = {};
+  REGISTROS.forEach(r => {
+    if (r.temVenc && r.totalVencidos>0) vencPorFilial[r.filial]=(vencPorFilial[r.filial]||0)+1;
+  });
+  REGISTROS.forEach(r => { r.reincidente = (vencPorFilial[r.filial]||0)>=2; });
+
+  // IDADE do dado (>12 meses)
+  const hoje = new Date();
+  REGISTROS.forEach(r => {
+    r.velho = false;
+    if (r.dataAuditoria) {
+      const p = r.dataAuditoria.split('/');
+      if (p.length===3) {
+        const dt = new Date(+p[2], +p[1]-1, +p[0]);
+        const meses = (hoje - dt) / (1000*60*60*24*30.4);
+        r.velho = meses > 12;
+      }
+    }
+  });
+
+  // Atualizar filtros e mostrar
+  document.getElementById('tela-import').style.display='none';
+  document.getElementById('painel').classList.remove('hidden');
+  mudarAba(ABA_ATUAL);
+  // Publica automaticamente na nuvem se configurado
+  if (getBinId() && getMasterKey() && !jbinSyncing) syncPush();
+}
+
+// ============================================================
+// CONSOLIDAÇÃO ANUAL (média por filial)
+// ============================================================
+function consolidarAnual(registros) {
+  const porFilial = {};
+  registros.forEach(r => { (porFilial[r.filial]=porFilial[r.filial]||[]).push(r); });
+  return Object.entries(porFilial).map(([filial, regs]) => {
+    const scores = regs.map(r=>r.scoreFinal);
+    const media = scores.reduce((a,b)=>a+b,0)/scores.length;
+    const variancia = scores.reduce((a,b)=>a+Math.pow(b-media,2),0)/scores.length;
+    const desvio = Math.sqrt(variancia);
+    const info = regs[0];
+    const vencidosCount = regs.filter(r=>r.temVenc&&r.totalVencidos>0).length;
+    const pctVencMed = regs.filter(r=>r.pctVencFat!=null).reduce((a,r,_,arr)=>a+r.pctVencFat/arr.length,0);
+    const volTotal = regs.reduce((a,r)=>a+r.canConf+r.pedConf,0);
+    return {
+      filial, filialNome:info.filialNome, gerente:info.gerente,
+      regional:info.regional, auditor:info.auditor, coordenador:info.coordenador, estado:info.estado, regiao:info.regiao,
+      auditorias: regs.length,
+      mediaScore: Math.round(media*10)/10,
+      maxScore: Math.round(Math.max(...scores)*10)/10,
+      minScore: Math.round(Math.min(...scores)*10)/10,
+      desvio: Math.round(desvio*10)/10,
+      regularidade: desvio<=5?'Alta':desvio<=12?'Média':'Baixa',
+      reincidente: vencidosCount>=2,
+      vencidosCount,
+      pctVencMed: pctVencMed||null,
+      volTotal,
+      ultimaData: regs.map(r=>r.dataAuditoria).filter(Boolean).sort().pop()||'',
+      velho: regs.every(r=>r.velho),
+      regs,
+    };
+  });
+}
+
+// Desempate: score → menor %venc → maior volume → menos reincidência
+function ordenarComDesempate(arr, keyScore) {
+  return arr.slice().sort((a,b)=>{
+    if (Math.abs(b[keyScore]-a[keyScore])>0.001) return b[keyScore]-a[keyScore];
+    const av = a.pctVencMed??999, bv = b.pctVencMed??999;
+    if (Math.abs(av-bv)>0.001) return av-bv;
+    if ((b.volTotal||0)!==(a.volTotal||0)) return (b.volTotal||0)-(a.volTotal||0);
+    return (a.vencidosCount||0)-(b.vencidosCount||0);
+  });
+}
+
+// ============================================================
+// RENDER ABAS
+// ============================================================
+function mudarAba(aba) {
+  ABA_ATUAL = aba;
+  ['anual','periodo','regional','evolucao','cobertura','config'].forEach(a=>{
+    document.getElementById('aba-'+a)?.classList.toggle('ativa', a===aba);
+  });
+  if (aba==='anual') renderAbaAnual();
+  else if (aba==='periodo') renderAbaPeriodo();
+  else if (aba==='regional') renderAbaRegional();
+  else if (aba==='evolucao') renderAbaEvolucao();
+  else if (aba==='cobertura') renderAbaCobertura();
+  else if (aba==='config') renderAbaConfig();
+}
+
+function abrirAbaConfig() {
+  requirePwd('Configurações (área restrita)','Digite a senha de operador para acessar as configurações da nuvem.',()=>{
+    document.getElementById('painel').classList.remove('hidden');
+    document.getElementById('tela-import').style.display='none';
+    mudarAba('config');
+  });
+}
+
+function scClass(s){ return s>=90?'sp-ouro':s>=70?'sp-verde':s>=40?'sp-amar':'sp-verm'; }
+function barColor(s){ return s>=90?'var(--ouro)':s>=70?'var(--green)':s>=40?'var(--amber)':'var(--red)'; }
+function fmt(v){ return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+// ---------- ABA RANKING ANUAL ----------
+function renderAbaAnual() {
+  const anual = ordenarComDesempate(consolidarAnual(REGISTROS), 'mediaScore');
+  const c = document.getElementById('conteudo-abas');
+
+  const totalFil = anual.length;
+  const mediaGeral = totalFil ? (anual.reduce((s,r)=>s+r.mediaScore,0)/totalFil).toFixed(1) : '—';
+  const lider = anual[0];
+  const altaReg = anual.filter(r=>r.regularidade==='Alta').length;
+
+  const podio = anual.slice(0,3);
+  const medals=['🥇','🥈','🥉'];
+  const cores=[['var(--ouro)','rgba(242,196,81,.2)','rgba(242,196,81,.4)'],['var(--prata)','rgba(184,196,208,.15)','rgba(184,196,208,.3)'],['var(--bronze)','rgba(205,127,50,.15)','rgba(205,127,50,.3)']];
+
+  c.innerHTML = `
+    <div class="info-bar">🏆 <strong>Ranking Anual ${CONFIG.ano}</strong> — consolida a média de todas as auditorias de cada filial no ano. Este é o ranking oficial da premiação${CONFIG.dataPremio?' — Convenção em <strong>'+CONFIG.dataPremio+'</strong>':''}.</div>
+
+    <div class="secao"><div class="secao-titulo">Resumo</div>
+      <div class="kpi-grid">
+        <div class="kpi b"><div class="kl">Filiais no Ranking</div><div class="kv">${totalFil}</div><div class="ks">de 30 filiais</div></div>
+        <div class="kpi g"><div class="kl">Score Médio Anual</div><div class="kv">${mediaGeral}</div><div class="ks">Média geral</div></div>
+        <div class="kpi g"><div class="kl">Alta Regularidade</div><div class="kv">${altaReg}</div><div class="ks">Desvio ≤ 5 pts</div></div>
+        ${lider?`<div class="kpi" style="border-top-color:var(--ouro)"><div class="kl">🥇 Líder do Ano</div><div class="kv" style="color:var(--ouro);font-size:17px;">${lider.filial}</div><div class="ks">${lider.mediaScore} pts · ${lider.filialNome}</div></div>`:''}
+      </div>
+    </div>
+
+    <div class="secao"><div class="secao-titulo">🏆 Pódio Anual</div>
+      <div class="premio-grid">
+        ${podio.map((r,i)=>`<div class="premio-card" style="border:1px solid ${cores[i][2]};background:${cores[i][1]};">
+          <div class="premio-medal">${medals[i]}</div>
+          <div class="premio-info">
+            <div class="premio-pos">${i+1}º Lugar Anual · ${r.auditorias} auditoria${r.auditorias!==1?'s':''}</div>
+            <div class="premio-nome">${r.filialNome}</div>
+            <div class="premio-score" style="color:${cores[i][0]}">${r.mediaScore} pts</div>
+          </div>
+          <button class="btn-topo" style="padding:6px 10px;font-size:11px;" onclick="gerarCertificado('${r.filial}',${i+1})">🎖 Certificado</button>
+        </div>`).join('')||'<div style="color:var(--text3)">Sem dados.</div>'}
+      </div>
+    </div>
+
+    ${metodHTML()}
+
+    <div class="filtros-bar">
+      <input class="busca" id="busca-anual" placeholder="Buscar filial/gerente..." oninput="renderTabelaAnual()">
+      <select class="sel-sm" id="fil-regional-anual" onchange="renderTabelaAnual()"><option value="">Todas as Regionais</option>${[...new Set(anual.map(r=>r.regional))].sort().map(x=>`<option>${x}</option>`).join('')}</select>
+      <select class="sel-sm" id="fil-auditor-anual" onchange="renderTabelaAnual()"><option value="">Todos os Auditores</option>${[...new Set(anual.map(r=>r.auditor))].sort().map(x=>`<option>${x}</option>`).join('')}</select>
+      <select class="sel-sm" id="fil-regiao-anual" onchange="renderTabelaAnual()"><option value="">Todas as Regiões</option>${[...new Set(anual.map(r=>r.regiao).filter(Boolean))].sort().map(x=>`<option>${x}</option>`).join('')}</select>
+    </div>
+
+    <div class="rank-wrap">
+      <div class="rank-header"><span>Ranking Anual Consolidado</span><span id="cnt-anual" style="font-size:11px;"></span></div>
+      <div style="overflow-x:auto;">
+        <table class="rank-table">
+          <thead><tr>
+            <th style="text-align:center;width:46px;">#</th>
+            <th>Filial</th><th>Gerente</th><th>Regional</th><th>Auditor</th>
+            <th style="text-align:center;">Score Médio</th>
+            <th style="text-align:center;">Auditorias</th>
+            <th style="text-align:center;">Regularidade</th>
+            <th style="text-align:center;">Máx</th><th style="text-align:center;">Mín</th>
+            <th style="text-align:center;">Cert.</th>
+          </tr></thead>
+          <tbody id="body-anual"></tbody>
+        </table>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;">
+      <strong>Critério de desempate:</strong> maior score médio → menor % de vencidos sobre faturamento → maior volume conferido → menor reincidência de vencidos.
+      <span class="selo selo-reinc">REINC</span> = vencidos em ≥2 auditorias no ano (desempate). <span class="selo selo-velho">12M+</span> = última auditoria há mais de 12 meses.
+    </div>`;
+  renderTabelaAnual();
+}
+
+function renderTabelaAnual() {
+  let anual = ordenarComDesempate(consolidarAnual(REGISTROS), 'mediaScore');
+  const busca=(document.getElementById('busca-anual')?.value||'').toLowerCase();
+  const fReg=document.getElementById('fil-regional-anual')?.value||'';
+  const fAud=document.getElementById('fil-auditor-anual')?.value||'';
+  const fRegiao=document.getElementById('fil-regiao-anual')?.value||'';
+  anual = anual.filter(r=>{
+    if(busca && !r.filial.toLowerCase().includes(busca)&&!r.filialNome.toLowerCase().includes(busca)&&!(r.gerente||'').toLowerCase().includes(busca)) return false;
+    if(fReg && r.regional!==fReg) return false;
+    if(fAud && r.auditor!==fAud) return false;
+    if(fRegiao && r.regiao!==fRegiao) return false;
+    return true;
+  });
+  document.getElementById('cnt-anual').textContent = anual.length+' filiais';
+  const regCor = {Alta:'comp-ok',Média:'comp-warn',Baixa:'comp-bad'};
+  document.getElementById('body-anual').innerHTML = anual.map((r,i)=>{
+    const pos=i+1, posCls=pos===1?'ouro':pos===2?'prata':pos===3?'bronze':'normal';
+    return `<tr class="${pos<=3?'pos'+pos:''}">
+      <td style="text-align:center;"><div class="pos-badge ${posCls}">${pos}</div></td>
+      <td><b>${r.filial}</b> ${r.reincidente?'<span class="selo selo-reinc">REINC</span>':''}${r.velho?'<span class="selo selo-velho">12M+</span>':''}<br><span style="font-size:11px;color:var(--text3)">${r.filialNome}</span></td>
+      <td style="font-size:12px;color:var(--text2)">${r.gerente||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${r.regional}</td>
+      <td style="font-size:12px;color:var(--text2)">${r.auditor}</td>
+      <td style="text-align:center;"><span class="score-pill ${scClass(r.mediaScore)}">${r.mediaScore}</span><div class="bar-wrap"><div class="bar-fill" style="width:${r.mediaScore}%;background:${barColor(r.mediaScore)}"></div></div></td>
+      <td style="text-align:center;">${r.auditorias}</td>
+      <td style="text-align:center;"><span class="comp-val ${regCor[r.regularidade]}">${r.regularidade}</span><br><span style="font-size:9px;color:var(--text3)">σ ${r.desvio}</span></td>
+      <td style="text-align:center;color:var(--green-dk)">${r.maxScore}</td>
+      <td style="text-align:center;color:${r.minScore<60?'var(--red-dk)':'var(--text2)'}">${r.minScore}</td>
+      <td style="text-align:center;"><button class="btn-rm" style="font-size:14px;" onclick="gerarCertificado('${r.filial}',${pos})" title="Gerar certificado">🎖</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3)">Nenhum registro.</td></tr>`;
+}
+
+function metodHTML() {
+  return `<div class="metod"><strong>Como o Score Final é calculado (máx 100 + bônus):</strong>
+    <div class="metod-items">
+      <div class="metod-item"><div class="dot" style="background:var(--red)"></div><span><strong>Semente 40</strong> — zero pendências = 40</span></div>
+      <div class="metod-item"><div class="dot" style="background:var(--brand)"></div><span><strong>Pedido 30</strong> — meta ≥95%</span></div>
+      <div class="metod-item"><div class="dot" style="background:var(--amber)"></div><span><strong>Vencidos 20</strong> — % sobre faturamento</span></div>
+      <div class="metod-item"><div class="dot" style="background:var(--green)"></div><span><strong>Canhoto 10</strong> — meta ≥95%</span></div>
+      <div class="metod-item"><div class="dot" style="background:var(--green-dk)"></div><span><strong>+Bônus volume até ${CONFIG.tetoBonus}</strong> — canhotos+pedidos conferidos</span></div>
+    </div></div>`;
+}
+
+// ---------- ABA POR PERÍODO ----------
+function renderAbaPeriodo() {
+  const c = document.getElementById('conteudo-abas');
+  const periodos=[...new Set(REGISTROS.map(r=>r.periodo).filter(Boolean))].sort();
+  c.innerHTML = `
+    <div class="info-bar">📅 <strong>Ranking por Período</strong> — snapshot de cada auditoria. Use para acompanhar mês a mês. O ranking oficial da premiação é o Anual.</div>
+    <div class="periodo-tags" id="ptags"></div>
+    ${metodHTML()}
+    <div class="filtros-bar">
+      <input class="busca" id="busca-per" placeholder="Buscar filial..." oninput="renderTabelaPeriodo()">
+      <select class="sel-sm" id="fil-tipo-per" onchange="renderTabelaPeriodo()">
+        <option value="">Todos os dados</option><option value="completo">Completos (P+C+V)</option>
+        <option value="ped">Só Pedido/Canhoto</option><option value="venc">Só Vencidos</option>
+      </select>
+    </div>
+    <div class="rank-wrap">
+      <div class="rank-header"><span>Ranking do Período</span><span id="cnt-per" style="font-size:11px;"></span></div>
+      <div style="overflow-x:auto;"><table class="rank-table">
+        <thead><tr>
+          <th style="text-align:center;width:46px;">#</th><th>Filial</th><th>Período</th>
+          <th style="text-align:center;">Score</th>
+          <th style="text-align:center;">🔴Sem</th><th style="text-align:center;">🔵Ped</th>
+          <th style="text-align:center;">🟡Venc</th><th style="text-align:center;">🟢Can</th>
+          <th style="text-align:center;">Bônus</th>
+          <th style="text-align:right;">%Ped</th><th style="text-align:right;">%Can</th>
+          <th style="text-align:right;">Vlr Venc.</th><th style="text-align:center;">Obs.</th><th style="text-align:center;">Dados</th>
+        </tr></thead>
+        <tbody id="body-per"></tbody>
+      </table></div>
+    </div>`;
+  let PER_SEL='';
+  window._perSel='';
+  document.getElementById('ptags').innerHTML =
+    `<div class="ptag ativo" onclick="selPeriodo('')">Todos</div>`+
+    periodos.map(p=>`<div class="ptag" onclick="selPeriodo('${p}')">${p}</div>`).join('');
+  renderTabelaPeriodo();
+}
+
+function selPeriodo(p){
+  window._perSel=p;
+  document.querySelectorAll('#ptags .ptag').forEach(t=>t.classList.remove('ativo'));
+  event.target.classList.add('ativo');
+  renderTabelaPeriodo();
+}
+
+function renderTabelaPeriodo() {
+  const perSel=window._perSel||'';
+  const busca=(document.getElementById('busca-per')?.value||'').toLowerCase();
+  const tipo=document.getElementById('fil-tipo-per')?.value||'';
+  let data = REGISTROS.filter(r=>{
+    if(perSel && r.periodo!==perSel) return false;
+    if(busca && !r.filial.toLowerCase().includes(busca)&&!r.filialNome.toLowerCase().includes(busca)) return false;
+    if(tipo==='completo'&&!(r.temPed&&r.temVenc)) return false;
+    if(tipo==='ped'&&!r.temPed) return false;
+    if(tipo==='venc'&&!r.temVenc) return false;
+    return true;
+  }).sort((a,b)=>b.scoreFinal-a.scoreFinal);
+  document.getElementById('cnt-per').textContent=data.length+' registros';
+  document.getElementById('body-per').innerHTML = data.map((r,i)=>{
+    const pos=i+1, posCls=pos===1?'ouro':pos===2?'prata':pos===3?'bronze':'normal';
+    const semCor=r.semPend===0?'comp-ok':'comp-bad';
+    const pedCor=r.pctPed>=95?'comp-ok':r.pctPed>=80?'comp-warn':'comp-bad';
+    const canCor=r.pctCan>=95?'comp-ok':r.pctCan>=80?'comp-warn':'comp-bad';
+    const vCor=!r.temVenc?'':r.sVenc>=16?'comp-ok':r.sVenc>=10?'comp-warn':'comp-bad';
+    const dados=r.temPed&&r.temVenc?'<span style="font-size:9px;background:rgba(95,212,160,.12);color:var(--green-dk);padding:2px 6px;border-radius:8px;">Completo</span>':r.temPed?'<span style="font-size:9px;background:rgba(43,127,212,.12);color:var(--brand-dk);padding:2px 6px;border-radius:8px;">Ped/Can</span>':'<span style="font-size:9px;background:rgba(224,167,58,.12);color:var(--amber-dk);padding:2px 6px;border-radius:8px;">Vencidos</span>';
+    const chaveObs=(r.filial+'|'+r.periodo).toUpperCase();
+    return `<tr class="${pos<=3?'pos'+pos:''}">
+      <td style="text-align:center;"><div class="pos-badge ${posCls}">${pos}</div></td>
+      <td><b>${r.filial}</b> ${r.reincidente?'<span class="selo selo-reinc">REINC</span>':''}<br><span style="font-size:11px;color:var(--text3)">${r.filialNome}</span></td>
+      <td style="font-size:12px;">${r.periodo||'—'}</td>
+      <td style="text-align:center;"><span class="score-pill ${scClass(r.scoreFinal)}">${r.scoreFinal.toFixed(1)}</span><div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(r.scoreFinal,100)}%;background:${barColor(r.scoreFinal)}"></div></div></td>
+      <td style="text-align:center;"><span class="comp-val ${semCor}">${r.temPed?(r.semPend===0?'✔40':'✗0'):'—'}</span></td>
+      <td style="text-align:center;"><span class="comp-val ${pedCor}">${r.temPed?r.sPed.toFixed(1):'—'}</span></td>
+      <td style="text-align:center;"><span class="comp-val ${vCor}">${r.sVenc.toFixed(1)}</span></td>
+      <td style="text-align:center;"><span class="comp-val ${canCor}">${r.temPed?r.sCan.toFixed(1):'—'}</span></td>
+      <td style="text-align:center;"><span class="selo selo-bonus">+${r.bonus.toFixed(1)}</span></td>
+      <td style="text-align:right;${r.pctPed>=95?'color:var(--green-dk)':r.pctPed?'color:var(--amber-dk)':'color:var(--text3)'}">${r.temPed?r.pctPed.toFixed(1)+'%':'—'}</td>
+      <td style="text-align:right;${r.pctCan>=95?'color:var(--green-dk)':r.pctCan?'color:var(--amber-dk)':'color:var(--text3)'}">${r.temPed?r.pctCan.toFixed(1)+'%':'—'}</td>
+      <td style="text-align:right;${r.valorVencidos>0?'color:var(--red-dk)':'color:var(--text3)'}">${r.temVenc?fmt(r.valorVencidos):'—'}</td>
+      <td><input class="obs-input" value="${(r.obs||'').replace(/"/g,'&quot;')}" placeholder="—" onchange="salvarObs('${chaveObs}',this.value)"></td>
+      <td style="text-align:center;">${dados}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="14" style="text-align:center;padding:40px;color:var(--text3)">Nenhum registro.</td></tr>`;
+}
+
+function salvarObs(chave, val){ OBSERVACOES[chave]=val; const r=REGISTROS.find(x=>(x.filial+'|'+x.periodo).toUpperCase()===chave); if(r)r.obs=val; }
+
+// ---------- ABA REGIONAL ----------
+function renderAbaRegional() {
+  const c=document.getElementById('conteudo-abas');
+  const anual=consolidarAnual(REGISTROS);
+  const porReg={};
+  anual.forEach(r=>{ (porReg[r.regional]=porReg[r.regional]||[]).push(r); });
+  const ranking=Object.entries(porReg).map(([regional,fils])=>{
+    const media=fils.reduce((a,f)=>a+f.mediaScore,0)/fils.length;
+    return { regional, filiais:fils.length, mediaScore:Math.round(media*10)/10,
+      melhor:fils.slice().sort((a,b)=>b.mediaScore-a.mediaScore)[0],
+      pior:fils.slice().sort((a,b)=>a.mediaScore-b.mediaScore)[0], fils };
+  }).sort((a,b)=>b.mediaScore-a.mediaScore);
+
+  c.innerHTML = `
+    <div class="info-bar">🗺 <strong>Ranking por Regional</strong> — média das filiais de cada regional. Mostra qual regional está conduzindo melhor suas lojas como um todo.</div>
+    <div class="rank-wrap">
+      <div class="rank-header"><span>Regionais</span><span style="font-size:11px;">${ranking.length} regionais</span></div>
+      <div style="overflow-x:auto;"><table class="rank-table">
+        <thead><tr><th style="text-align:center;width:46px;">#</th><th>Regional</th><th style="text-align:center;">Filiais</th><th style="text-align:center;">Score Médio</th><th>Melhor Filial</th><th>Pior Filial</th></tr></thead>
+        <tbody>${ranking.map((r,i)=>{
+          const pos=i+1, posCls=pos===1?'ouro':pos===2?'prata':pos===3?'bronze':'normal';
+          return `<tr class="${pos<=3?'pos'+pos:''}">
+            <td style="text-align:center;"><div class="pos-badge ${posCls}">${pos}</div></td>
+            <td><b>${r.regional}</b></td>
+            <td style="text-align:center;">${r.filiais}</td>
+            <td style="text-align:center;"><span class="score-pill ${scClass(r.mediaScore)}">${r.mediaScore}</span></td>
+            <td style="font-size:12px;color:var(--green-dk)">${r.melhor.filial} (${r.melhor.mediaScore})</td>
+            <td style="font-size:12px;color:var(--red-dk)">${r.pior.filial} (${r.pior.mediaScore})</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
+}
+
+// ---------- ABA EVOLUÇÃO ----------
+function renderAbaEvolucao() {
+  const c=document.getElementById('conteudo-abas');
+  const periodos=[...new Set(REGISTROS.map(r=>r.periodo).filter(Boolean))].sort();
+  const filiais=[...new Set(REGISTROS.map(r=>r.filial))].sort();
+
+  // calcular evolução (primeiro vs último período de cada filial)
+  const evol=consolidarAnual(REGISTROS).map(f=>{
+    const ord=f.regs.filter(r=>r.periodo).sort((a,b)=>a.periodo.localeCompare(b.periodo));
+    if(ord.length<2) return null;
+    const delta=ord[ord.length-1].scoreFinal - ord[0].scoreFinal;
+    return { filial:f.filial, filialNome:f.filialNome, delta:Math.round(delta*10)/10, de:ord[0].scoreFinal, para:ord[ord.length-1].scoreFinal };
+  }).filter(Boolean).sort((a,b)=>b.delta-a.delta);
+
+  c.innerHTML = `
+    <div class="info-bar">📈 <strong>Evolução do Score</strong> — acompanha o desempenho mês a mês. O destaque de maior evolução é <em>informativo</em> (não é categoria de premiação).</div>
+    ${periodos.length<2?'<div style="text-align:center;padding:40px;color:var(--text3)">São necessários pelo menos 2 períodos para mostrar evolução. Importe mais auditorias.</div>':`
+    <div class="chart-card"><div class="chart-title">Score por Período (cada linha = uma filial)</div><canvas id="canvas-evol" height="110"></canvas></div>
+    <div class="secao"><div class="secao-titulo">🚀 Maior Evolução no Ano (informativo)</div>
+      <div class="premio-grid">
+        ${evol.slice(0,3).map((e,i)=>`<div class="premio-card" style="border:1px solid var(--green);background:var(--green-lt);">
+          <div class="premio-medal">${['🚀','📈','⬆'][i]}</div>
+          <div class="premio-info"><div class="premio-pos">Evolução · ${e.de} → ${e.para}</div><div class="premio-nome">${e.filialNome}</div>
+          <div class="premio-score" style="color:var(--green-dk)">+${e.delta} pts</div></div>
+        </div>`).join('')||'<div style="color:var(--text3)">Sem evolução calculável.</div>'}
+      </div>
+    </div>`}`;
+
+  if(periodos.length>=2) {
+    setTimeout(()=>{
+      const ctx=document.getElementById('canvas-evol');
+      if(!ctx) return;
+      if(chartEvol) chartEvol.destroy();
+      const palette=['#2b7fd4','#35b87a','#e0a73a','#e25c4d','#9cc4ec','#5fd4a0','#f2c451','#b8c4d0','#cd7f32','#8ba2c2'];
+      const datasets=filiais.slice(0,12).map((f,idx)=>({
+        label:f,
+        data:periodos.map(p=>{ const r=REGISTROS.find(x=>x.filial===f&&x.periodo===p); return r?r.scoreFinal:null; }),
+        borderColor:palette[idx%palette.length], backgroundColor:'transparent', tension:.3, spanGaps:true, pointRadius:3,
+      }));
+      chartEvol=new Chart(ctx,{type:'line',data:{labels:periodos,datasets},
+        options:{responsive:true,plugins:{legend:{labels:{color:'#8ba2c2',font:{size:10},boxWidth:12}}},
+          scales:{y:{min:0,max:105,grid:{color:'#1a2c47'},ticks:{color:'#54667f'}},x:{grid:{color:'#1a2c47'},ticks:{color:'#54667f'}}}}});
+    },50);
+  }
+}
+
+// ---------- ABA COBERTURA ----------
+function renderAbaCobertura() {
+  const c=document.getElementById('conteudo-abas');
+  const auditadas=new Set(REGISTROS.map(r=>r.filial.toUpperCase()));
+  const todas=Object.keys(BASE_FILIAIS);
+  const faltantes=todas.filter(s=>!auditadas.has(s));
+  const pct=Math.round(auditadas.size/todas.length*100);
+
+  c.innerHTML = `
+    <div class="info-bar">✅ <strong>Cobertura de Auditorias</strong> — quantas das ${todas.length} filiais já foram auditadas. Premiar num universo incompleto pode ser injusto: confira a cobertura antes da convenção.</div>
+    <div class="kpi-grid" style="margin-bottom:20px;">
+      <div class="kpi g"><div class="kl">Filiais Auditadas</div><div class="kv">${auditadas.size}/${todas.length}</div><div class="ks">${pct}% de cobertura</div></div>
+      <div class="kpi ${faltantes.length?'r':'g'}"><div class="kl">Ainda Não Auditadas</div><div class="kv">${faltantes.length}</div><div class="ks">${faltantes.length?'Pendentes neste ano':'Cobertura completa 🎉'}</div></div>
+    </div>
+    <div class="secao"><div class="secao-titulo">Filiais Auditadas</div>
+      <div class="cobertura-grid">${[...auditadas].sort().map(s=>`<span class="cob-chip cob-ok">${s} · ${BASE_FILIAIS[s]?.loja||''}</span>`).join('')}</div>
+    </div>
+    ${faltantes.length?`<div class="secao"><div class="secao-titulo">⚠ Pendentes de Auditoria</div>
+      <div class="cobertura-grid">${faltantes.sort().map(s=>`<span class="cob-chip cob-falta">${s} · ${BASE_FILIAIS[s]?.loja||''} · ${BASE_FILIAIS[s]?.auditor||''}</span>`).join('')}</div>
+    </div>`:''}`;
+}
+
+// ============================================================
+// CERTIFICADO
+// ============================================================
+function gerarCertificado(sigla, posicao) {
+  const anual=consolidarAnual(REGISTROS).find(f=>f.filial===sigla);
+  if(!anual){ alert('Sem dados para esta filial.'); return; }
+  const titulos={1:'1º LUGAR',2:'2º LUGAR',3:'3º LUGAR'};
+  const tituloTxt=titulos[posicao]||`${posicao}º Lugar`;
+  const medalha=posicao===1?'🥇':posicao===2?'🥈':posicao===3?'🥉':'🏅';
+  const corBorda=posicao===1?'#f2c451':posicao===2?'#b8c4d0':posicao===3?'#cd7f32':'#2b7fd4';
+
+  document.getElementById('cert-render').innerHTML = `
+    <div style="border:8px double ${corBorda};padding:50px;text-align:center;position:relative;">
+      <div style="font-size:64px;margin-bottom:10px;">${medalha}</div>
+      <div style="font-size:14px;letter-spacing:4px;color:#888;text-transform:uppercase;">Agroquima · Auditoria Interna</div>
+      <div style="font-size:38px;font-weight:bold;color:#1a2e4a;margin:14px 0;letter-spacing:1px;">CERTIFICADO DE MÉRITO</div>
+      <div style="font-size:18px;color:#444;margin-bottom:28px;">Programa de Excelência em Auditoria de Estoque ${CONFIG.ano}</div>
+      <div style="font-size:15px;color:#555;">Concedido à filial</div>
+      <div style="font-size:34px;font-weight:bold;color:#2b7fd4;margin:8px 0;">${anual.filialNome}</div>
+      <div style="font-size:15px;color:#555;margin-bottom:6px;">sob gestão de <strong>${anual.gerente||'—'}</strong></div>
+      <div style="display:inline-block;background:${corBorda};color:#1a2e4a;font-size:22px;font-weight:bold;padding:10px 32px;border-radius:30px;margin:18px 0;">${tituloTxt} — ${anual.mediaScore} PONTOS</div>
+      <div style="font-size:13px;color:#666;margin-top:10px;">Score médio anual em ${anual.auditorias} auditoria(s) · Regularidade ${anual.regularidade} · Regional ${anual.regional}</div>
+      <div style="display:flex;justify-content:space-around;margin-top:50px;">
+        <div style="border-top:1px solid #999;padding-top:6px;width:220px;font-size:12px;color:#666;">Auditoria Interna<br><strong>${anual.auditor||'—'}</strong></div>
+        <div style="border-top:1px solid #999;padding-top:6px;width:220px;font-size:12px;color:#666;">Coordenação<br><strong>${anual.coordenador||'—'}</strong></div>
+      </div>
+      <div style="font-size:12px;color:#999;margin-top:30px;">${CONFIG.dataPremio?'Convenção Administrativa · '+CONFIG.dataPremio:'Emitido em '+new Date().toLocaleDateString('pt-BR')}</div>
+    </div>`;
+
+  setTimeout(()=>{
+    html2canvas(document.getElementById('cert-render'),{scale:2,backgroundColor:'#fff'}).then(canvas=>{
+      const { jsPDF }=window.jspdf;
+      const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+      const w=pdf.internal.pageSize.getWidth(), h=(canvas.height*w)/canvas.width;
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',0,(pdf.internal.pageSize.getHeight()-h)/2,w,h);
+      pdf.save(`Certificado_${sigla}_${posicao}lugar_${CONFIG.ano}.pdf`);
+    });
+  },80);
+}
+
+// ============================================================
+// MODAIS
+// ============================================================
+function fecharModal(id){ document.getElementById(id).classList.add('hidden'); }
+
+function abrirModalFaturamento() {
+  if(!REGISTROS.length && !ARQUIVOS.length){ alert('Importe arquivos primeiro.'); return; }
+  acumularFaturamento();
+  const siglas=[...new Set([
+    ...REGISTROS.map(r=>r.filial),
+    ...ARQUIVOS.filter(a=>a.dados&&a.tipo!=='fat').flatMap(a=>a.dados.map(d=>d.filial).filter(Boolean)),
+    ...Object.keys(FAT_ACUM)
+  ])].map(s=>String(s).toUpperCase());
+  const unicas=[...new Set(siglas)].sort();
+  document.getElementById('fat-rows').innerHTML=unicas.map(s=>{
+    const acc = FAT_ACUM[s];
+    const fat = (acc && acc.valor>0) ? Math.round(acc.valor*100)/100 : (FATURAMENTOS[s]||'');
+    const nome=BASE_FILIAIS[s]?.loja||s;
+    const origem = acc && acc.valor>0
+      ? `<div style="font-size:10px;color:var(--green-dk);margin-top:2px;">📊 CFOP: ${acc.periodoInicio||'?'} a ${acc.periodoFim||'?'} · ${acc.linhas} vendas · atualizado ${acc.importadoEm||'—'}</div>`
+      : `<div style="font-size:10px;color:var(--text3);margin-top:2px;">digite manualmente ou importe o relatório CFOP</div>`;
+    return `<div class="fat-row" style="flex-direction:column;align-items:stretch;gap:6px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="fat-row-nome">${s}<br><span style="font-size:11px;color:var(--text3)">${nome}</span></div>
+        <input type="number" id="fat-${s.replace(/\W/g,'_')}" value="${fat}" placeholder="R$ 0,00" step="0.01" min="0">
+      </div>
+      ${origem}
+    </div>`;
+  }).join('');
+  document.getElementById('modal-fat').classList.remove('hidden');
+}
+
+function salvarFaturamentos() {
+  document.querySelectorAll('#fat-rows input').forEach(inp=>{
+    const s=inp.id.replace('fat-','').replace(/_/g,'');
+    // recuperar sigla original
+  });
+  const siglas=[...new Set(REGISTROS.map(r=>r.filial.toUpperCase()))];
+  Object.keys(BASE_FILIAIS).forEach(s=>{
+    const inp=document.getElementById('fat-'+s.replace(/\W/g,'_'));
+    if(inp&&inp.value){ const v=parseFloat(inp.value); if(v>0) FATURAMENTOS[s]=v; }
+  });
+  fecharModal('modal-fat');
+  processarERenderizar();
+}
+
+function abrirModalConfig() {
+  document.getElementById('cfg-data-premio').value=CONFIG.dataPremio||'';
+  document.getElementById('cfg-ano').value=CONFIG.ano||new Date().getFullYear();
+  document.getElementById('cfg-bonus').value=CONFIG.tetoBonus;
+  document.getElementById('modal-config').classList.remove('hidden');
+}
+
+function salvarConfig() {
+  CONFIG.dataPremio=document.getElementById('cfg-data-premio').value||'';
+  CONFIG.ano=parseInt(document.getElementById('cfg-ano').value)||new Date().getFullYear();
+  CONFIG.tetoBonus=parseFloat(document.getElementById('cfg-bonus').value)||5;
+  fecharModal('modal-config');
+  if(REGISTROS.length) processarERenderizar();
+}
+
+// ============================================================
+// EXPORTAÇÃO
+// ============================================================
+function exportarRankingXLS() {
+  if(!REGISTROS.length){ alert('Sem dados.'); return; }
+  const wb=XLSX.utils.book_new();
+  const dt=new Date().toLocaleDateString('pt-BR').split('/').join('-');
+
+  // Aba Anual
+  const anual=ordenarComDesempate(consolidarAnual(REGISTROS),'mediaScore');
+  const h1=['#','Filial','Nome','Gerente','Regional','Auditor','Coordenador','Auditorias','Score Médio','Score Máx','Score Mín','Desvio','Regularidade','Reincidente Vencidos','Última Auditoria'];
+  const r1=[h1,...anual.map((r,i)=>[i+1,r.filial,r.filialNome,r.gerente,r.regional,r.auditor,r.coordenador,r.auditorias,r.mediaScore,r.maxScore,r.minScore,r.desvio,r.regularidade,r.reincidente?'SIM':'não',r.ultimaData])];
+  const ws1=XLSX.utils.aoa_to_sheet(r1);
+  ws1['!cols']=[{wch:4},{wch:8},{wch:20},{wch:18},{wch:18},{wch:14},{wch:16},{wch:11},{wch:12},{wch:10},{wch:10},{wch:9},{wch:13},{wch:18},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,ws1,'Ranking Anual');
+
+  // Aba Por Período
+  const h2=['Filial','Nome','Período','Gerente','Regional','Score Final','Bônus','Semente','Pedido','Vencidos','Canhoto','%Ped','%Can','Sem.Pend','Vlr Vencidos','Faturamento','%Venc/Fat','Observação','Dados'];
+  const r2=[h2,...REGISTROS.sort((a,b)=>b.scoreFinal-a.scoreFinal).map(r=>[
+    r.filial,r.filialNome,r.periodo,r.gerente,r.regional,r.scoreFinal,r.bonus,r.sSem,r.sPed,r.sVenc,r.sCan,
+    r.pctPed,r.pctCan,r.semPend,r.valorVencidos,r.faturamento>0?r.faturamento:'',r.pctVencFat!=null?parseFloat(r.pctVencFat.toFixed(4)):'',r.obs||'',
+    r.temPed&&r.temVenc?'Completo':r.temPed?'Ped/Can':'Vencidos'])];
+  const ws2=XLSX.utils.aoa_to_sheet(r2);
+  XLSX.utils.book_append_sheet(wb,ws2,'Por Período');
+
+  // Aba Regional
+  const anualR=consolidarAnual(REGISTROS);
+  const porReg={};
+  anualR.forEach(r=>{(porReg[r.regional]=porReg[r.regional]||[]).push(r);});
+  const rankReg=Object.entries(porReg).map(([reg,fils])=>[reg,fils.length,Math.round(fils.reduce((a,f)=>a+f.mediaScore,0)/fils.length*10)/10]).sort((a,b)=>b[2]-a[2]);
+  const ws3=XLSX.utils.aoa_to_sheet([['#','Regional','Filiais','Score Médio'],...rankReg.map((r,i)=>[i+1,...r])]);
+  XLSX.utils.book_append_sheet(wb,ws3,'Por Regional');
+
+  // Aba Cobertura
+  const auditadas=new Set(REGISTROS.map(r=>r.filial.toUpperCase()));
+  const cob=Object.keys(BASE_FILIAIS).map(s=>[s,BASE_FILIAIS[s].loja,BASE_FILIAIS[s].auditor,auditadas.has(s)?'Auditada':'PENDENTE']);
+  const ws4=XLSX.utils.aoa_to_sheet([['Sigla','Filial','Auditor','Situação'],...cob]);
+  XLSX.utils.book_append_sheet(wb,ws4,'Cobertura');
+
+  // Backup
+  const ws5=XLSX.utils.aoa_to_sheet([['BACKUP'],[JSON.stringify({registros:REGISTROS,faturamentos:FATURAMENTOS,observacoes:OBSERVACOES,config:CONFIG})]]);
+  XLSX.utils.book_append_sheet(wb,ws5,'Backup JSON');
+
+  XLSX.writeFile(wb,`Ranking_Auditoria_Agroquima_${dt}.xlsx`);
+}
+
+function salvarRankingJSON() {
+  if(!REGISTROS.length){ alert('Sem dados.'); return; }
+  const dt=new Date().toLocaleDateString('pt-BR').split('/').join('-');
+  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`Ranking_Backup_${dt}.json`;a.click();
+  URL.revokeObjectURL(url);
+}
+
+function lerBackupJSON(input) {
+  const file=input.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(d.faturamentos) FATURAMENTOS=d.faturamentos;
+      if(d.observacoes) OBSERVACOES=d.observacoes;
+      if(d.config) CONFIG=Object.assign(CONFIG,d.config);
+      if(d.arquivos) ARQUIVOS=d.arquivos;
+      if(d.arquivos && d.arquivos.length) { processarERenderizar(); }
+      else if(d.registros){ REGISTROS=d.registros; document.getElementById('tela-import').style.display='none'; document.getElementById('painel').classList.remove('hidden'); mudarAba('anual'); }
+      alert('Dados carregados.');
+    }catch(err){ alert('Erro: '+err.message); }
+  };
+  r.readAsText(file);
+  input.value='';
+}
+
+function limparTudo() {
+  if(!confirm('Limpar todos os dados? Esta ação não pode ser desfeita.')) return;
+  ARQUIVOS=[];FATURAMENTOS={};OBSERVACOES={};REGISTROS=[];FAT_ACUM={};
+  document.getElementById('tela-import').style.display='block';
+  document.getElementById('painel').classList.add('hidden');
+  document.getElementById('arqs-wrap').innerHTML='';
+  document.getElementById('btn-processar-wrap').classList.add('hidden');
+  if(getBinId()&&getMasterKey()) syncPush();
+}
+
+// ============================================================
+// TRAVA DE SENHA DE OPERADOR
+// ============================================================
+const OPERATOR_PWD = 'Rank@2026';
+let pwdCallback = null;
+
+function requirePwd(title, desc, callback) {
+  pwdCallback = callback;
+  document.getElementById('pwd-title').textContent = title || 'Confirmar acesso';
+  document.getElementById('pwd-desc').textContent = desc || 'Digite a senha de operador para continuar.';
+  document.getElementById('pwd-input').value = '';
+  document.getElementById('pwd-error').style.display = 'none';
+  document.getElementById('modal-pwd').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('pwd-input').focus(), 100);
+}
+function submitPwd() {
+  const val = document.getElementById('pwd-input').value;
+  if (val === OPERATOR_PWD) {
+    document.getElementById('modal-pwd').classList.add('hidden');
+    const cb = pwdCallback; pwdCallback = null;
+    if (cb) cb();
+  } else {
+    document.getElementById('pwd-error').style.display = 'block';
+    document.getElementById('pwd-input').value = '';
+    document.getElementById('pwd-input').focus();
+  }
+}
+function cancelPwd() {
+  document.getElementById('modal-pwd').classList.add('hidden');
+  pwdCallback = null;
+}
+
+// ============================================================
+// SINCRONIZAÇÃO JSONBIN (mesmo padrão do painel de vencidos)
+// ============================================================
+const JBIN_CFG_KEY = 'agroquima_ranking_jbin_cfg';
+let jbinSyncing = false;
+const HARDCODED_BIN_ID = '';      // em branco — operador cria pela aba de config
+const HARDCODED_READ_KEY = '';
+
+function getJBinCfg(){ try{return JSON.parse(localStorage.getItem(JBIN_CFG_KEY)||'{}');}catch(e){return {};} }
+function saveJBinCfg(cfg){ localStorage.setItem(JBIN_CFG_KEY, JSON.stringify({...getJBinCfg(),...cfg})); }
+function getBinId(){ return getJBinCfg().binId || (typeof PUBLISHED_BIN_ID!=='undefined'?PUBLISHED_BIN_ID:HARDCODED_BIN_ID); }
+function getMasterKey(){ return getJBinCfg().masterKey || (typeof PUBLISHED_READ_KEY!=='undefined'?PUBLISHED_READ_KEY:HARDCODED_READ_KEY); }
+function getReadKey(){ return getJBinCfg().masterKey || (typeof PUBLISHED_READ_KEY!=='undefined'?PUBLISHED_READ_KEY:HARDCODED_READ_KEY); }
+
+async function jbinCreate(masterKey){
+  const r=await fetch('https://api.jsonbin.io/v3/b',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-Master-Key':masterKey,'X-Bin-Name':'Agroquima-Ranking','X-Bin-Private':'false'},
+    body:JSON.stringify({registros:[],faturamentos:{},observacoes:{},config:CONFIG,app:'agroquima-ranking',v:1})
+  });
+  const d=await r.json();
+  if(!r.ok) throw new Error(d.message||'Erro ao criar bin');
+  return d.metadata?.id;
+}
+async function jbinRead(binId, masterKey){
+  let lastErr, rec;
+  try{
+    const r=await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`,{headers:{}});
+    const d=await r.json();
+    if(r.ok){rec=d.record;} else lastErr=new Error(d.message||('HTTP '+r.status));
+  }catch(e){lastErr=e;}
+  if(rec===undefined&&masterKey){
+    try{
+      const r=await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`,{headers:{'X-Master-Key':masterKey}});
+      const d=await r.json();
+      if(r.ok){rec=d.record;} else lastErr=new Error(d.message||('HTTP '+r.status));
+    }catch(e){lastErr=e;}
+  }
+  if(rec===undefined) throw lastErr||new Error('Erro ao ler');
+  return descompactarPayload(rec);
+}
+async function jbinWrite(binId, masterKey, payload){
+  const r=await fetch(`https://api.jsonbin.io/v3/b/${binId}`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json','X-Master-Key':masterKey},
+    body:JSON.stringify(payload)
+  });
+  const d=await r.json();
+  if(!r.ok) throw new Error(d.message||'Erro ao salvar');
+  return d;
+}
+function compactarPayload(obj){
+  const json=JSON.stringify(obj);
+  if(typeof LZString!=='undefined'&&LZString.compressToUTF16){ return {__lz:true,d:LZString.compressToUTF16(json)}; }
+  return obj;
+}
+function descompactarPayload(raw){
+  if(raw&&raw.__lz&&typeof LZString!=='undefined'&&LZString.decompressFromUTF16){
+    try{return JSON.parse(LZString.decompressFromUTF16(raw.d));}catch(e){return null;}
+  }
+  return raw;
+}
+
+function setSyncStatus(status, detail){
+  const el=document.getElementById('sync-indicator'); if(!el) return;
+  const m={
+    ok:['#1e8449','☁','Sincronizado'],
+    conectado:['#2563eb','☁','Conectado · nuvem vazia'],
+    syncing:['#d68910','⟳','Sincronizando...'],
+    error:['#c0392b','⚠','Erro de sync'],
+    nokey:['#94a3b8','☁','Sem sync'],
+  };
+  const [color,icon,label]=m[status]||m['nokey'];
+  el.style.borderColor=color;
+  el.innerHTML=`<span style="color:${color}">${icon}</span><span style="font-size:11px;margin-left:4px;color:${color}">${detail&&status==='ok'?detail:label}</span>`;
+}
+
+async function syncPull(){
+  const binId=getBinId();
+  if(!binId){ setSyncStatus('nokey'); return; }
+  setSyncStatus('syncing','Carregando...');
+  try{
+    const remote=await jbinRead(binId, getReadKey());
+    if(remote && (Array.isArray(remote.registros)&&remote.registros.length || (remote.arquivos&&remote.arquivos.length))){
+      if(remote.faturamentos) FATURAMENTOS=remote.faturamentos;
+      if(remote.observacoes) OBSERVACOES=remote.observacoes;
+      if(remote.config) CONFIG=Object.assign(CONFIG, remote.config);
+      if(remote.arquivos && remote.arquivos.length){
+        ARQUIVOS=remote.arquivos;
+        processarERenderizar();
+      } else if(remote.registros){
+        REGISTROS=remote.registros;
+        document.getElementById('tela-import').style.display='none';
+        document.getElementById('painel').classList.remove('hidden');
+        mudarAba(ABA_ATUAL);
+      }
+      setSyncStatus('ok');
+      saveJBinCfg({lastPull:new Date().toLocaleString('pt-BR')});
+    } else {
+      setSyncStatus(REGISTROS.length?'ok':'conectado');
+    }
+  }catch(e){
+    setSyncStatus('error', e.message.slice(0,20));
+    console.warn('JSONBin pull:', e.message);
+  }
+}
+
+async function syncPush(){
+  const binId=getBinId(), masterKey=getMasterKey();
+  if(!binId||!masterKey){ alert('Configure a Master Key e o Bin ID na aba ⚙ Configurações antes de publicar.'); return; }
+  if(jbinSyncing) return;
+  jbinSyncing=true;
+  setSyncStatus('syncing','Publicando...');
+  try{
+    const payload={
+      registros:REGISTROS, faturamentos:FATURAMENTOS, observacoes:OBSERVACOES,
+      config:CONFIG, arquivos:ARQUIVOS,
+      lastUpdate:new Date().toISOString(), app:'agroquima-ranking'
+    };
+    await jbinWrite(binId, masterKey, compactarPayload(payload));
+    setSyncStatus('ok');
+    saveJBinCfg({lastPush:new Date().toLocaleString('pt-BR')});
+  }catch(e){
+    setSyncStatus('error', e.message.slice(0,20));
+    alert('Erro ao publicar: '+e.message);
+  }finally{ jbinSyncing=false; }
+}
+
+// ============================================================
+// ABA DE CONFIGURAÇÃO
+// ============================================================
+function renderAbaConfig(){
+  const cfg=getJBinCfg();
+  const binId=getBinId(), hasKey=!!getMasterKey();
+  const c=document.getElementById('conteudo-abas');
+  let statusHtml;
+  if(binId&&hasKey) statusHtml=`<span style="color:var(--green-dk)">✔ <strong>Configurado e pronto.</strong></span> Bin: <code style="font-size:11px;background:var(--bg3);padding:1px 5px;border-radius:3px">${binId}</code><br><span style="font-size:11px;color:var(--text3)">Última sincronização: ${cfg.lastPush||cfg.lastPull||'nunca'}</span>`;
+  else if(binId&&!hasKey) statusHtml=`<span style="color:var(--brand-dk)">👁 <strong>Visualizador configurado.</strong></span> Lê da nuvem, mas não publica.<br><span style="font-size:11px;color:var(--text3)">Bin ID: ${binId}</span>`;
+  else statusHtml=`<span style="color:var(--text3)">⚠ Não configurado. Siga os passos abaixo.</span>`;
+
+  c.innerHTML=`
+    <div class="info-bar">☁ <strong>Sincronização em Nuvem (JSONBin)</strong> — com a chave configurada, ao importar/excluir dados eles vão automaticamente para a nuvem e todos que têm o link veem na hora. A senha de operador protege contra alterações acidentais (não é um cofre).</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1000px;">
+      <div class="chart-card">
+        <div class="chart-title">🔑 Credenciais JSONBin</div>
+        <div id="config-current-status" style="font-size:13px;margin-bottom:16px;padding:10px 14px;background:var(--bg3);border-radius:8px;line-height:1.6;">${statusHtml}</div>
+
+        <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Master Key do JSONBin</label>
+        <div style="display:flex;gap:6px;margin-bottom:14px;">
+          <input type="password" id="jbin-key-input" placeholder="Cole sua Master Key ($2a$10$...)" value="${cfg.masterKey||''}" style="flex:1;padding:9px 12px;border:1px solid var(--border2);border-radius:6px;background:var(--bg3);color:var(--text);font-size:13px;font-family:monospace;">
+          <button class="btn-topo" onclick="toggleKeyVisibility()" title="Mostrar/ocultar">👁</button>
+        </div>
+
+        <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px;">Bin ID</label>
+        <div style="display:flex;gap:6px;margin-bottom:16px;">
+          <input type="text" id="jbin-id-display" readonly placeholder="Gerado ao criar o bin" value="${cfg.binId||binId||''}" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:12px;font-family:monospace;">
+          <button class="btn-topo" onclick="copyBinId()" title="Copiar">📋</button>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-az" style="font-size:12px;padding:8px 14px;margin:0;" onclick="handleSaveConfig()">💾 Salvar Config</button>
+          <button class="btn-topo" onclick="handleCreateBin()">➕ Criar Bin</button>
+          <button class="btn-topo" onclick="handleTestConnection()">🔌 Testar Conexão</button>
+          <button class="btn-topo primary" onclick="requirePwd('Publicar para todos','Digite a senha de operador para gerar o arquivo publicável.',handlePublicar)">📤 Publicar para todos</button>
+        </div>
+        <div id="config-status" style="display:none;margin-top:14px;padding:10px 14px;border-radius:8px;font-size:13px;white-space:pre-wrap;line-height:1.5;"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-title">📋 Como configurar</div>
+        <ol style="font-size:13px;color:var(--text2);line-height:1.9;padding-left:20px;">
+          <li>Acesse <a href="https://jsonbin.io" target="_blank" style="color:var(--brand-dk);font-weight:600;">jsonbin.io</a> e faça login (gratuito).</li>
+          <li>Clique no seu nome → <strong>API Keys</strong> → copie a <strong>Master Key</strong>.</li>
+          <li>Cole a Master Key ao lado e clique em <strong>Criar Bin</strong>.</li>
+          <li>Clique em <strong>Publicar para todos</strong> → baixe o HTML gerado e suba na sua hospedagem (uma vez, para embutir o Bin ID).</li>
+        </ol>
+        <div style="margin-top:14px;padding:12px;background:var(--bg3);border-radius:8px;font-size:11px;color:var(--text3);line-height:1.6;">
+          <strong>Senha de operador:</strong> protege importar, excluir, limpar e acessar estas configurações. Compartilhe apenas com auditores autorizados.<br><br>
+          <strong>Limite do plano grátis:</strong> ~100KB por bin. O painel comprime os dados (LZString) para caber bastante histórico.
+        </div>
+        <div style="margin-top:14px;padding:12px;background:var(--bg3);border-radius:8px;">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">Parâmetros do Ranking</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;">Data da Premiação</span><input id="cfg-data-premio" type="text" placeholder="15/12/2026" value="${CONFIG.dataPremio||''}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;"></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;">Ano de Referência</span><input id="cfg-ano" type="number" value="${CONFIG.ano}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;"></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;">Teto do Bônus de Volume</span><input id="cfg-bonus" type="number" step="0.5" value="${CONFIG.tetoBonus}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;"></div>
+            <button class="btn-topo" style="margin-top:4px;" onclick="salvarConfigParams()">Salvar Parâmetros</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleKeyVisibility(){
+  const inp=document.getElementById('jbin-key-input'); if(!inp) return;
+  inp.type = inp.type==='password' ? 'text' : 'password';
+}
+function copyBinId(){
+  const v=document.getElementById('jbin-id-display').value;
+  if(v && navigator.clipboard){ navigator.clipboard.writeText(v).then(()=>showConfigStatus('ok','Bin ID copiado!')); }
+}
+function handleSaveConfig(){
+  const key=document.getElementById('jbin-key-input').value.trim();
+  const binId=document.getElementById('jbin-id-display').value.trim();
+  if(!key){ showConfigStatus('warning','Cole a Master Key antes de salvar.'); return; }
+  saveJBinCfg({masterKey:key, binId:binId||getJBinCfg().binId});
+  showConfigStatus('ok','Configuração salva com sucesso!');
+  renderAbaConfig();
+}
+async function handleCreateBin(){
+  const key=document.getElementById('jbin-key-input').value.trim();
+  if(!key){ showConfigStatus('error','Cole a Master Key primeiro.'); return; }
+  showConfigStatus('loading','Criando bin no JSONBin...');
+  try{
+    const binId=await jbinCreate(key);
+    document.getElementById('jbin-id-display').value=binId;
+    saveJBinCfg({masterKey:key, binId});
+    showConfigStatus('ok','Bin criado! Bin ID: '+binId+'\n\nAgora clique em "Publicar para todos" para distribuir o link.');
+    setSyncStatus('conectado');
+    renderAbaConfig();
+  }catch(e){ showConfigStatus('error','Erro: '+e.message+'\n\nVerifique a Master Key.'); }
+}
+async function handleTestConnection(){
+  const key=document.getElementById('jbin-key-input').value.trim()||getMasterKey();
+  const binId=document.getElementById('jbin-id-display').value.trim()||getBinId();
+  if(!binId){ showConfigStatus('error','Nenhum Bin ID. Crie um bin primeiro.'); return; }
+  showConfigStatus('loading','Testando conexão...');
+  try{
+    const data=await jbinRead(binId, key);
+    const n=(data?.registros?.length)||0;
+    showConfigStatus('ok',`Conexão OK! Bin acessível. Registros na nuvem: ${n}.`);
+  }catch(e){ showConfigStatus('error','Falha: '+e.message); }
+}
+function showConfigStatus(type,msg){
+  const el=document.getElementById('config-status'); if(!el) return;
+  const cor={ok:'var(--green-lt)',error:'var(--red-lt)',loading:'var(--amber-lt)',warning:'var(--amber-lt)'}[type]||'var(--bg3)';
+  const txtcor={ok:'var(--green-dk)',error:'var(--red-dk)',loading:'var(--amber-dk)',warning:'var(--amber-dk)'}[type]||'var(--text)';
+  el.style.display='block'; el.style.background=cor; el.style.color=txtcor;
+  el.textContent=msg;
+}
+function salvarConfigParams(){
+  CONFIG.dataPremio=document.getElementById('cfg-data-premio').value||'';
+  CONFIG.ano=parseInt(document.getElementById('cfg-ano').value)||new Date().getFullYear();
+  CONFIG.tetoBonus=parseFloat(document.getElementById('cfg-bonus').value)||5;
+  showConfigStatus('ok','Parâmetros salvos!');
+  if(REGISTROS.length) processarERenderizar();
+}
+
+// Publicar: gera HTML com Bin ID + Read Key embutidos (igual painel de vencidos)
+function handlePublicar(){
+  const binId=getBinId(), masterKey=getMasterKey();
+  if(!binId){ showConfigStatus('error','Crie/configure um Bin primeiro.'); return; }
+  // syncPush antes de publicar para garantir dados na nuvem
+  if(masterKey) syncPush();
+  let html=document.documentElement.outerHTML;
+  const inject=`<scr`+`ipt>var PUBLISHED_BIN_ID='${binId}';${masterKey?`var PUBLISHED_READ_KEY='${masterKey}';`:''}<\/scr`+`ipt>`;
+  // injeta logo após a tag de comentário de credenciais
+  html=html.replace('<!-- Credenciais publicadas (preenchidas ao clicar em "Publicar para todos") -->',
+                    '<!-- Credenciais publicadas -->\n'+inject);
+  const blob=new Blob(['<!DOCTYPE html>\n'+html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='Ranking_Auditoria_Agroquima_PUBLICADO.html'; a.click();
+  URL.revokeObjectURL(url);
+  showConfigStatus('ok','HTML publicável gerado! Suba esse arquivo na sua hospedagem. Todos que abrirem já leem a nuvem automaticamente.');
+}
+
+// ============================================================
+// INICIALIZAÇÃO — puxa da nuvem ao abrir
+// ============================================================
+window.addEventListener('DOMContentLoaded', ()=>{
+  if(getBinId()) syncPull(); else setSyncStatus('nokey');
+});
+
+
+</script>
+</body>
+</html>
