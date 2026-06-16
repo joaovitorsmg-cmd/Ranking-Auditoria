@@ -190,6 +190,38 @@ canvas{max-width:100%;}
 
 /* Certificado */
 #cert-render{background:#fff;color:#1a2e4a;width:1000px;padding:60px;font-family:Georgia,serif;}
+
+/* ── MOBILE RESPONSIVO ──────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  #topo { height:auto!important;min-height:50px;padding:8px 12px!important;gap:8px!important;flex-wrap:nowrap; }
+  #topo-sub { display:none!important; }
+  #topo-titulo { font-size:11px!important; }
+  #sync-indicator { display:none!important; }
+  .logo-box { width:32px!important;height:32px!important; }
+  .topo-btns { display:none; }
+  .topo-btns.aberto {
+    display:flex;flex-direction:column;position:fixed;top:50px;right:0;
+    background:var(--bg2);border:1px solid var(--border);border-radius:0 0 0 12px;
+    padding:10px;gap:6px;z-index:300;box-shadow:-4px 4px 20px rgba(0,0,0,.5);min-width:200px;
+  }
+  .topo-btns.aberto .btn-topo { width:100%;justify-content:flex-start; }
+  #btn-acoes-mobile {
+    display:inline-flex!important;align-items:center;gap:5px;background:var(--bg2);
+    border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:6px 10px;
+    font-size:14px;cursor:pointer;margin-left:auto;flex-shrink:0;
+  }
+  #abas { gap:0; }
+  .aba { padding:0 12px!important;font-size:12px!important;height:38px!important; }
+  #app { padding:12px 10px!important; }
+  .rank-wrap { overflow-x:auto;-webkit-overflow-scrolling:touch; }
+  .modal-overlay { align-items:flex-end!important;padding:0!important; }
+  .modal-box { max-width:100%!important;width:100%!important;max-height:90vh!important;border-radius:16px 16px 0 0!important;margin:0!important; }
+  .premio-grid { grid-template-columns:1fr!important; }
+  .filtros-bar { gap:6px; }
+  .busca { min-width:120px!important;width:100%!important; }
+  .sel-sm { width:100%!important; }
+  .periodo-tags { flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px; }
+}
 </style>
 </head>
 <body>
@@ -203,8 +235,11 @@ canvas{max-width:100%;}
     <div id="topo-sub">Consolida Pedido/Canhoto, Sementes e Vencidos para premiação de filiais</div>
   </div>
   <div id="sync-indicator" style="display:inline-flex;align-items:center;padding:5px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--border);margin-right:4px;" title="Status da sincronização com a nuvem">☁ <span style="font-size:11px;margin-left:4px;color:var(--text3);">Sem sync</span></div>
-  <div class="topo-btns">
-    <button class="btn-topo" onclick="abrirModalFaturamento()" title="Informar faturamento para o score de vencidos">💰 Faturamentos</button>
+  <button id="btn-acoes-mobile" style="display:none;" onclick="toggleAcoesMobile()">&#9776; A&ccedil;&otilde;es</button>
+  <div class="topo-btns" id="topo-btns-wrap">
+    <button class="btn-topo" onclick="abrirModalFaturamento()" title="Ajuste manual de faturamento">💰 Faturamentos</button>
+    <button class="btn-topo" onclick="document.getElementById('inp-fat-json').click()" title="Importar base de faturamento JSON">📊 Base Fat. (JSON)</button>
+    <input type="file" id="inp-fat-json" accept=".json" style="display:none;" onchange="processarFatJSON(this)">
     <button class="btn-topo" onclick="requirePwd('Sincronizar com a nuvem','Digite a senha de operador para publicar os dados na nuvem.',syncPush)" title="Publicar dados na nuvem (JSONBin)">☁ Publicar</button>
     <button class="btn-topo" onclick="abrirAbaConfig()" title="Configurar nuvem JSONBin e parâmetros">⚙ Configurações</button>
     <button class="btn-topo primary" onclick="exportarRankingXLS()">📥 Exportar (.xlsx)</button>
@@ -212,6 +247,7 @@ canvas{max-width:100%;}
     <button class="btn-topo" onclick="requirePwd('Carregar dados','Digite a senha de operador para carregar dados.',()=>document.getElementById('inp-backup').click())">📂 Carregar (.json)</button>
     <button class="btn-topo danger" onclick="requirePwd('Limpar tudo','Digite a senha de operador para limpar todos os dados.',limparTudo)">✕ Limpar</button>
   </div>
+  </div><!-- /topo-btns-wrap -->
   <input type="file" id="inp-import" accept=".json,.xlsx,.xls" multiple style="display:none;" onchange="processarArquivosImportados(this)">
   <input type="file" id="inp-backup" accept=".json" style="display:none;" onchange="lerBackupJSON(this)">
 </div>
@@ -236,11 +272,24 @@ canvas{max-width:100%;}
 <div class="modal-overlay hidden" id="modal-fat">
   <div class="modal-box">
     <div class="modal-title">💰 Faturamento das Filiais</div>
-    <div class="modal-sub">O faturamento é preenchido automaticamente ao importar o <strong>relatório de Resumo CFOP</strong> (soma das vendas por filial, CFOPs de venda). Você pode ajustar manualmente. Sem faturamento, assume-se 100% no componente de Vencidos.</div>
+    <div class="modal-sub">Ajuste manual por filial. Para importar automaticamente por período, use <strong>📊 Base Fat. (JSON)</strong>. Sem faturamento o componente Vencidos assume 0%.</div>
     <div id="fat-rows"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
       <button class="btn-modal sec" onclick="fecharModal('modal-fat')">Cancelar</button>
       <button class="btn-modal primary" onclick="salvarFaturamentos()">✔ Salvar e Recalcular</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRÉVIA BASE FATURAMENTO JSON -->
+<div class="modal-overlay hidden" id="modal-fat-base">
+  <div class="modal-box" style="max-width:700px;">
+    <div class="modal-title">📊 Base de Faturamento — JSON</div>
+    <div class="modal-sub" id="fat-base-sub">Verificando arquivo...</div>
+    <div id="fat-base-preview" style="max-height:380px;overflow-y:auto;margin-top:12px;font-size:11px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn-modal sec" onclick="fecharModal('modal-fat-base')">Cancelar</button>
+      <button class="btn-modal primary" onclick="confirmarFatBase()">✔ Importar e Acumular</button>
     </div>
   </div>
 </div>
@@ -315,6 +364,7 @@ const BASE_FILIAIS = {"MTZ": {"filial": 1, "loja": "MATRIZ", "estado": "GO", "ge
 // ============================================================
 let ARQUIVOS = [];        // arquivos importados
 let FATURAMENTOS = {};    // { sigla: valor }  (resultado final usado no score)
+let FAT_HISTORICO = {};  // { sigla: { 'MM/YYYY': valor } } — histórico por período
 let FAT_ACUM = {};        // { sigla: {valor, chaves:Set, periodoInicio, periodoFim, importadoEm, linhas} }
 let OBSERVACOES = {};     // { chave: texto }
 let REGISTROS = [];       // todos os registros período a período (mesclados)
@@ -698,7 +748,8 @@ function processarERenderizar() {
 
   // Aplicar faturamento manual + calcular scores base
   Object.values(map).forEach(r => {
-    if (!r.faturamento && FATURAMENTOS[r.filial.toUpperCase()]) r.faturamento = FATURAMENTOS[r.filial.toUpperCase()];
+    const _fatP = (FAT_HISTORICO[r.filial.toUpperCase()]||{})[r.periodo];
+    if (!r.faturamento) r.faturamento = _fatP || FATURAMENTOS[r.filial.toUpperCase()] || 0;
     if (r.temVenc) r.pctVencFat = r.faturamento>0 ? (r.valorVencidos/r.faturamento)*100 : null;
     const sc = calcScoreBase(r);
     Object.assign(r, sc);
@@ -766,7 +817,7 @@ function consolidarAnual(registros) {
     const pctVencMed = regs.filter(r=>r.pctVencFat!=null).reduce((a,r,_,arr)=>a+r.pctVencFat/arr.length,0);
     const volTotal = regs.reduce((a,r)=>a+r.canConf+r.pedConf,0);
     return {
-      filial, filialNome:info.filialNome, gerente:info.gerente,
+      filial, filialNome:info.filialNome, supervisor:info.supervisor, gerente:info.gerente,
       regional:info.regional, auditor:info.auditor, coordenador:info.coordenador, estado:info.estado, regiao:info.regiao,
       auditorias: regs.length,
       mediaScore: Math.round(media*10)/10,
@@ -868,7 +919,7 @@ function renderAbaAnual() {
     ${metodHTML()}
 
     <div class="filtros-bar">
-      <input class="busca" id="busca-anual" placeholder="Buscar filial/gerente..." oninput="renderTabelaAnual()">
+      <input class="busca" id="busca-anual" placeholder="Buscar filial/supervisor..." oninput="renderTabelaAnual()">
       <select class="sel-sm" id="fil-regional-anual" onchange="renderTabelaAnual()"><option value="">Todas as Regionais</option>${[...new Set(anual.map(r=>r.regional))].sort().map(x=>`<option>${x}</option>`).join('')}</select>
       <select class="sel-sm" id="fil-auditor-anual" onchange="renderTabelaAnual()"><option value="">Todos os Auditores</option>${[...new Set(anual.map(r=>r.auditor))].sort().map(x=>`<option>${x}</option>`).join('')}</select>
       <select class="sel-sm" id="fil-regiao-anual" onchange="renderTabelaAnual()"><option value="">Todas as Regiões</option>${[...new Set(anual.map(r=>r.regiao).filter(Boolean))].sort().map(x=>`<option>${x}</option>`).join('')}</select>
@@ -880,7 +931,7 @@ function renderAbaAnual() {
         <table class="rank-table">
           <thead><tr>
             <th style="text-align:center;width:46px;">#</th>
-            <th>Filial</th><th>Gerente</th><th>Regional</th><th>Auditor</th>
+            <th>Filial</th><th>Supervisor</th><th>Regional</th><th>Auditor</th>
             <th style="text-align:center;">Score Médio</th>
             <th style="text-align:center;">Auditorias</th>
             <th style="text-align:center;">Regularidade</th>
@@ -905,7 +956,7 @@ function renderTabelaAnual() {
   const fAud=document.getElementById('fil-auditor-anual')?.value||'';
   const fRegiao=document.getElementById('fil-regiao-anual')?.value||'';
   anual = anual.filter(r=>{
-    if(busca && !r.filial.toLowerCase().includes(busca)&&!r.filialNome.toLowerCase().includes(busca)&&!(r.gerente||'').toLowerCase().includes(busca)) return false;
+    if(busca && !r.filial.toLowerCase().includes(busca)&&!r.filialNome.toLowerCase().includes(busca)&&!(r.supervisor||'').toLowerCase().includes(busca)) return false;
     if(fReg && r.regional!==fReg) return false;
     if(fAud && r.auditor!==fAud) return false;
     if(fRegiao && r.regiao!==fRegiao) return false;
@@ -918,7 +969,7 @@ function renderTabelaAnual() {
     return `<tr class="${pos<=3?'pos'+pos:''}">
       <td style="text-align:center;"><div class="pos-badge ${posCls}">${pos}</div></td>
       <td><b>${r.filial}</b> ${r.reincidente?'<span class="selo selo-reinc">REINC</span>':''}${r.velho?'<span class="selo selo-velho">12M+</span>':''}<br><span style="font-size:11px;color:var(--text3)">${r.filialNome}</span></td>
-      <td style="font-size:12px;color:var(--text2)">${r.gerente||'—'}</td>
+      <td style="font-size:12px;color:var(--text2);font-weight:600;">${r.supervisor||'—'}</td>
       <td style="font-size:12px;color:var(--text2)">${r.regional}</td>
       <td style="font-size:12px;color:var(--text2)">${r.auditor}</td>
       <td style="text-align:center;"><span class="score-pill ${scClass(r.mediaScore)}">${r.mediaScore}</span><div class="bar-wrap"><div class="bar-fill" style="width:${r.mediaScore}%;background:${barColor(r.mediaScore)}"></div></div></td>
@@ -1024,22 +1075,22 @@ function renderAbaAuditor() {
               const pos=i+1, posCls=pos===1?'ouro':pos===2?'prata':pos===3?'bronze':'normal';
               const barW = a.progresso;
               const detalhes = a.mediasPorFilial.map(f =>
-                \`<span class="cob-chip \${f.mediaScore>=70?'cob-ok':'cob-falta'}" style="font-size:10px;padding:2px 7px;" title="\${f.filialNome}">\${f.filial} · \${f.mediaScore}pts · \${f.rodadas}/${totalRod}rds</span>\`
+                `<span class="cob-chip ${f.mediaScore>=70?'cob-ok':'cob-falta'}" style="font-size:10px;padding:2px 7px;" title="${f.filialNome}">${f.filial} · ${f.mediaScore}pts · ${f.rodadas}/${totalRod}rds</span>`
               ).join(' ');
-              return \`<tr class="\${pos<=3?'pos'+pos:''}">
-                <td style="text-align:center;"><div class="pos-badge \${posCls}">\${pos}</div></td>
-                <td><b style="font-size:14px;">\${a.auditor}</b></td>
-                <td style="text-align:center;"><span class="score-pill \${scClass(a.mediaScore)}">\${a.mediaScore}</span>
-                  <div class="bar-wrap"><div class="bar-fill" style="width:\${Math.min(a.mediaScore,105)/105*100}%;background:\${barColor(a.mediaScore)}"></div></div>
+              return `<tr class="${pos<=3?'pos'+pos:''}">
+                <td style="text-align:center;"><div class="pos-badge ${posCls}">${pos}</div></td>
+                <td><b style="font-size:14px;">${a.auditor}</b></td>
+                <td style="text-align:center;"><span class="score-pill ${scClass(a.mediaScore)}">${a.mediaScore}</span>
+                  <div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(a.mediaScore,105)/105*100}%;background:${barColor(a.mediaScore)}"></div></div>
                 </td>
-                <td style="text-align:center;font-size:13px;">\${a.totalFiliais}</td>
-                <td style="text-align:center;font-weight:600;font-size:13px;">\${a.totalAudits}<span style="color:var(--text3);font-weight:400;">/\${a.totalEsperado}</span></td>
+                <td style="text-align:center;font-size:13px;">${a.totalFiliais}</td>
+                <td style="text-align:center;font-weight:600;font-size:13px;">${a.totalAudits}<span style="color:var(--text3);font-weight:400;">/${a.totalEsperado}</span></td>
                 <td style="text-align:center;min-width:90px;">
-                  <div class="bar-wrap" style="height:8px;"><div class="bar-fill" style="width:\${barW}%;background:\${barW>=80?'var(--green)':barW>=50?'var(--amber)':'var(--red)'}"></div></div>
-                  <span style="font-size:9px;color:var(--text3)">\${a.progresso}% concluído</span>
+                  <div class="bar-wrap" style="height:8px;"><div class="bar-fill" style="width:${barW}%;background:${barW>=80?'var(--green)':barW>=50?'var(--amber)':'var(--red)'}"></div></div>
+                  <span style="font-size:9px;color:var(--text3)">${a.progresso}% concluído</span>
                 </td>
-                <td><div style="display:flex;flex-wrap:wrap;gap:4px;padding:2px 0;">\${detalhes}</div></td>
-              \`;
+                <td><div style="display:flex;flex-wrap:wrap;gap:4px;padding:2px 0;">${detalhes}</div></td>
+              `;
             }).join('')}
           </tbody>
         </table>
@@ -1259,12 +1310,12 @@ function gerarCertificado(sigla, posicao) {
       <div style="font-size:18px;color:#444;margin-bottom:28px;">Programa de Excelência em Auditoria de Estoque ${CONFIG.ano}</div>
       <div style="font-size:15px;color:#555;">Concedido à filial</div>
       <div style="font-size:34px;font-weight:bold;color:#2b7fd4;margin:8px 0;">${anual.filialNome}</div>
-      <div style="font-size:15px;color:#555;margin-bottom:6px;">sob gestão de <strong>${anual.gerente||'—'}</strong></div>
+      <div style="font-size:15px;color:#555;margin-bottom:6px;">sob supervisão de <strong>${anual.supervisor||'—'}</strong></div>
       <div style="display:inline-block;background:${corBorda};color:#1a2e4a;font-size:22px;font-weight:bold;padding:10px 32px;border-radius:30px;margin:18px 0;">${tituloTxt} — ${anual.mediaScore} PONTOS</div>
-      <div style="font-size:13px;color:#666;margin-top:10px;">Score médio anual em ${anual.auditorias} auditoria(s) · Regularidade ${anual.regularidade} · Regional ${anual.regional}</div>
+      <div style="font-size:13px;color:#666;margin-top:10px;">Score médio anual em ${anual.auditorias} auditoria(s) · Regularidade ${anual.regularidade} </div>
       <div style="display:flex;justify-content:space-around;margin-top:50px;">
         <div style="border-top:1px solid #999;padding-top:6px;width:220px;font-size:12px;color:#666;">Auditoria Interna<br><strong>${anual.auditor||'—'}</strong></div>
-        <div style="border-top:1px solid #999;padding-top:6px;width:220px;font-size:12px;color:#666;">Coordenação<br><strong>${anual.coordenador||'—'}</strong></div>
+        <div style="border-top:1px solid #999;padding-top:6px;width:220px;font-size:12px;color:#666;">Supervisor(a)<br><strong>${anual.supervisor||'—'}</strong></div>
       </div>
       <div style="font-size:12px;color:#999;margin-top:30px;">${CONFIG.dataPremio?'Convenção Administrativa · '+CONFIG.dataPremio:'Emitido em '+new Date().toLocaleDateString('pt-BR')}</div>
     </div>`;
@@ -1351,16 +1402,16 @@ function exportarRankingXLS() {
 
   // Aba Anual
   const anual=ordenarComDesempate(consolidarAnual(REGISTROS),'mediaScore');
-  const h1=['#','Filial','Nome','Gerente','Regional','Auditor','Coordenador','Auditorias','Score Médio','Score Máx','Score Mín','Desvio','Regularidade','Reincidente Vencidos','Última Auditoria'];
-  const r1=[h1,...anual.map((r,i)=>[i+1,r.filial,r.filialNome,r.gerente,r.regional,r.auditor,r.coordenador,r.auditorias,r.mediaScore,r.maxScore,r.minScore,r.desvio,r.regularidade,r.reincidente?'SIM':'não',r.ultimaData])];
+  const h1=['#','Filial','Nome','Supervisor','Regional','Auditor','Auditorias','Score Médio','Score Máx','Score Mín','Desvio','Regularidade','Reincidente Vencidos','Última Auditoria'];
+  const r1=[h1,...anual.map((r,i)=>[i+1,r.filial,r.filialNome,r.supervisor,r.regional,r.auditor,r.auditorias,r.mediaScore,r.maxScore,r.minScore,r.desvio,r.regularidade,r.reincidente?'SIM':'não',r.ultimaData])];
   const ws1=XLSX.utils.aoa_to_sheet(r1);
   ws1['!cols']=[{wch:4},{wch:8},{wch:20},{wch:18},{wch:18},{wch:14},{wch:16},{wch:11},{wch:12},{wch:10},{wch:10},{wch:9},{wch:13},{wch:18},{wch:16}];
   XLSX.utils.book_append_sheet(wb,ws1,'Ranking Anual');
 
   // Aba Por Período
-  const h2=['Filial','Nome','Período','Gerente','Regional','Score Final','Bônus','Semente','Pedido','Vencidos','Canhoto','%Ped','%Can','Sem.Pend','Vlr Vencidos','Faturamento','%Venc/Fat','Observação','Dados'];
+  const h2=['Filial','Nome','Período','Supervisor','Regional','Score Final','Bônus','Semente','Pedido','Vencidos','Canhoto','%Ped','%Can','Sem.Pend','Vlr Vencidos','Faturamento','%Venc/Fat','Observação','Dados'];
   const r2=[h2,...REGISTROS.sort((a,b)=>b.scoreFinal-a.scoreFinal).map(r=>[
-    r.filial,r.filialNome,r.periodo,r.gerente,r.regional,r.scoreFinal,r.bonus,r.sSem,r.sPed,r.sVenc,r.sCan,
+    r.filial,r.filialNome,r.periodo,r.supervisor,r.regional,r.scoreFinal,r.bonus,r.sSem,r.sPed,r.sVenc,r.sCan,
     r.pctPed,r.pctCan,r.semPend,r.valorVencidos,r.faturamento>0?r.faturamento:'',r.pctVencFat!=null?parseFloat(r.pctVencFat.toFixed(4)):'',r.obs||'',
     r.temPed&&r.temVenc?'Completo':r.temPed?'Ped/Can':'Vencidos'])];
   const ws2=XLSX.utils.aoa_to_sheet(r2);
@@ -1381,7 +1432,7 @@ function exportarRankingXLS() {
   XLSX.utils.book_append_sheet(wb,ws4,'Cobertura');
 
   // Backup
-  const ws5=XLSX.utils.aoa_to_sheet([['BACKUP'],[JSON.stringify({registros:REGISTROS,faturamentos:FATURAMENTOS,observacoes:OBSERVACOES,config:CONFIG})]]);
+  const ws5=XLSX.utils.aoa_to_sheet([['BACKUP'],[JSON.stringify({registros:REGISTROS,faturamentos:FATURAMENTOS,fatHistorico:FAT_HISTORICO,observacoes:OBSERVACOES,config:CONFIG})]]);
   XLSX.utils.book_append_sheet(wb,ws5,'Backup JSON');
 
   XLSX.writeFile(wb,`Ranking_Auditoria_Agroquima_${dt}.xlsx`);
@@ -1390,7 +1441,7 @@ function exportarRankingXLS() {
 function salvarRankingJSON() {
   if(!REGISTROS.length){ alert('Sem dados.'); return; }
   const dt=new Date().toLocaleDateString('pt-BR').split('/').join('-');
-  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS};
+  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,fatHistorico:FAT_HISTORICO,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=`Ranking_Backup_${dt}.json`;a.click();
@@ -1404,6 +1455,7 @@ function lerBackupJSON(input) {
     try{
       const d=JSON.parse(e.target.result);
       if(d.faturamentos) FATURAMENTOS=d.faturamentos;
+      if(d.fatHistorico) FAT_HISTORICO=d.fatHistorico;
       if(d.observacoes) OBSERVACOES=d.observacoes;
       if(d.config) CONFIG=Object.assign(CONFIG,d.config);
       if(d.arquivos) ARQUIVOS=d.arquivos;
@@ -1418,7 +1470,7 @@ function lerBackupJSON(input) {
 
 function limparTudo() {
   if(!confirm('Limpar todos os dados? Esta ação não pode ser desfeita.')) return;
-  ARQUIVOS=[];FATURAMENTOS={};OBSERVACOES={};REGISTROS=[];FAT_ACUM={};
+  ARQUIVOS=[];FATURAMENTOS={};FAT_HISTORICO={};OBSERVACOES={};REGISTROS=[];FAT_ACUM={};
   document.getElementById('tela-import').style.display='block';
   document.getElementById('painel').classList.add('hidden');
   document.getElementById('arqs-wrap').innerHTML='';
@@ -1543,6 +1595,7 @@ async function syncPull(){
     const remote=await jbinRead(binId, getReadKey());
     if(remote && (Array.isArray(remote.registros)&&remote.registros.length || (remote.arquivos&&remote.arquivos.length))){
       if(remote.faturamentos) FATURAMENTOS=remote.faturamentos;
+      if(remote.fatHistorico) FAT_HISTORICO=remote.fatHistorico;
       if(remote.observacoes) OBSERVACOES=remote.observacoes;
       if(remote.config) CONFIG=Object.assign(CONFIG, remote.config);
       if(remote.arquivos && remote.arquivos.length){
@@ -1573,7 +1626,7 @@ async function syncPush(){
   setSyncStatus('syncing','Publicando...');
   try{
     const payload={
-      registros:REGISTROS, faturamentos:FATURAMENTOS, observacoes:OBSERVACOES,
+      registros:REGISTROS, faturamentos:FATURAMENTOS, fatHistorico:FAT_HISTORICO, observacoes:OBSERVACOES,
       config:CONFIG, arquivos:ARQUIVOS,
       lastUpdate:new Date().toISOString(), app:'agroquima-ranking'
     };
@@ -1736,6 +1789,108 @@ window.addEventListener('DOMContentLoaded', ()=>{
 });
 
 
+
+  // ── Mobile: toggle ações ──────────────────────────────────────────────────
+  function toggleAcoesMobile() {
+    document.getElementById('topo-btns-wrap').classList.toggle('aberto');
+  }
+  document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('topo-btns-wrap');
+    const btn  = document.getElementById('btn-acoes-mobile');
+    if (wrap && btn && !wrap.contains(e.target) && !btn.contains(e.target))
+      wrap.classList.remove('aberto');
+  });
+
+  // ── Base Faturamento JSON ─────────────────────────────────────────────────
+  // JSON usa 12 índices rolling: índice 11 = mês de ate, índice 0 = ate - 11 meses
+  function idxToMesPeriodo(ateStr, idx) {
+    const parts = ateStr.split('-');
+    const anoAte = parseInt(parts[0]), mesAte = parseInt(parts[1]);
+    const total = anoAte * 12 + (mesAte - 1) - 11 + idx;
+    const ano = Math.floor(total / 12);
+    const mes = (total % 12) + 1;
+    return String(mes).padStart(2,'0') + '/' + ano;
+  }
+
+  let _fatBaseData = null;
+
+  function processarFatJSON(input) {
+    const file = input.files[0]; if (!file) return;
+    input.value = '';
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const json = JSON.parse(e.target.result);
+        if (!json.siglas || !json.base || !json.ate) {
+          alert('Arquivo inválido: campos siglas, base ou ate ausentes.'); return;
+        }
+        const siglas = json.siglas, base = json.base, ate = json.ate;
+        // Computar faturamento por filial por mês
+        const fat = {};
+        siglas.forEach(function(s) { fat[s] = {}; });
+        Object.values(base).forEach(function(prodDados) {
+          const porFilial = prodDados[1] || {};
+          Object.keys(porFilial).forEach(function(idxStr) {
+            const idx = parseInt(idxStr);
+            if (idx >= siglas.length) return;
+            const sigla = siglas[idx];
+            const meses = porFilial[idxStr];
+            Object.keys(meses).forEach(function(mesIdx) {
+              const periodo = idxToMesPeriodo(ate, parseInt(mesIdx));
+              fat[sigla][periodo] = (fat[sigla][periodo] || 0) + meses[mesIdx];
+            });
+          });
+        });
+        // Períodos ordenados
+        const periodos = [];
+        Object.values(fat).forEach(function(v) { Object.keys(v).forEach(function(p) { if (periodos.indexOf(p)<0) periodos.push(p); }); });
+        periodos.sort(function(a,b) {
+          const pa=a.split('/'), pb=b.split('/');
+          return (parseInt(pa[1])*12+parseInt(pa[0])) - (parseInt(pb[1])*12+parseInt(pb[0]));
+        });
+        _fatBaseData = { fat: fat, ate: ate, arquivo: file.name, periodos: periodos, siglas: siglas };
+        // Prévia
+        const ateDisplay = ate.split('-')[1].padStart(2,'0') + '/' + ate.split('-')[0];
+        document.getElementById('fat-base-sub').innerHTML =
+          'Arquivo: <strong>' + file.name + '</strong> &nbsp;·&nbsp; Até: <strong>' + ateDisplay + '</strong> &nbsp;·&nbsp; ' +
+          '<strong>' + siglas.length + '</strong> filiais &nbsp;·&nbsp; <strong>' + periodos.length + '</strong> períodos<br>' +
+          '<small style="color:var(--green-dk)">Novos períodos serão adicionados; períodos existentes serão atualizados.</small>';
+        const pHead = periodos.map(function(p) { return '<th style="white-space:nowrap;padding:4px 8px;font-size:10px;">' + p + '</th>'; }).join('');
+        const rows = siglas.map(function(s) {
+          const cols = periodos.map(function(p) {
+            const v = fat[s][p] || 0;
+            const exist = (FAT_HISTORICO[s]||{})[p];
+            const cor = exist ? 'var(--amber-dk)' : (v>0 ? 'inherit' : 'var(--text3)');
+            return '<td style="text-align:right;padding:3px 7px;color:' + cor + '">' + (v>0 ? 'R$ ' + Math.round(v).toLocaleString('pt-BR') : '—') + '</td>';
+          }).join('');
+          return '<tr><td style="padding:3px 8px;font-weight:700;white-space:nowrap;">' + s + '</td>' + cols + '</tr>';
+        }).join('');
+        document.getElementById('fat-base-preview').innerHTML =
+          '<table style="border-collapse:collapse;width:100%;">' +
+          '<thead><tr style="background:var(--bg3);"><th style="padding:4px 8px;text-align:left;font-size:10px;">Filial</th>' + pHead + '</tr></thead>' +
+          '<tbody>' + rows + '</tbody></table>' +
+          '<div style="margin-top:6px;font-size:10px;color:var(--text3);">* Amarelo = já existe no histórico (será substituído).</div>';
+        document.getElementById('modal-fat-base').classList.remove('hidden');
+      } catch(err) { alert('Erro ao ler JSON: ' + err.message); }
+    };
+    reader.readAsText(file);
+  }
+
+  function confirmarFatBase() {
+    if (!_fatBaseData) return;
+    const fat = _fatBaseData.fat, siglas = _fatBaseData.siglas;
+    siglas.forEach(function(s) {
+      if (!FAT_HISTORICO[s]) FAT_HISTORICO[s] = {};
+      Object.keys(fat[s]).forEach(function(periodo) {
+        if (fat[s][periodo] > 0) FAT_HISTORICO[s][periodo] = Math.round(fat[s][periodo]*100)/100;
+      });
+    });
+    _fatBaseData = null;
+    fecharModal('modal-fat-base');
+    processarERenderizar();
+    const total = Object.values(FAT_HISTORICO).reduce(function(s,v){ return s+Object.keys(v).length; }, 0);
+    alert('Base importada! ' + total + ' registros de faturamento no histórico.');
+  }
 </script>
 </body>
 </html>
