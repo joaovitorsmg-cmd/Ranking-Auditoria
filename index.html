@@ -293,6 +293,7 @@ canvas{max-width:100%;}
       <div class="aba ativa" onclick="mudarAba('anual')" id="aba-anual">🏆 Ranking Anual</div>
       <div class="aba" onclick="mudarAba('periodo')" id="aba-periodo">📅 Por Período</div>
       <div class="aba" onclick="mudarAba('regional')" id="aba-regional">🗺 Por Regional</div>
+      <div class="aba" onclick="mudarAba('auditor')" id="aba-auditor">👤 Por Auditor</div>
       <div class="aba" onclick="mudarAba('evolucao')" id="aba-evolucao">📈 Evolução</div>
       <div class="aba" onclick="mudarAba('cobertura')" id="aba-cobertura">✅ Cobertura</div>
       <div class="aba" onclick="mudarAba('config')" id="aba-config" style="margin-left:auto;">⚙ Configurações</div>
@@ -317,7 +318,7 @@ let FATURAMENTOS = {};    // { sigla: valor }  (resultado final usado no score)
 let FAT_ACUM = {};        // { sigla: {valor, chaves:Set, periodoInicio, periodoFim, importadoEm, linhas} }
 let OBSERVACOES = {};     // { chave: texto }
 let REGISTROS = [];       // todos os registros período a período (mesclados)
-let CONFIG = { dataPremio:'', ano: new Date().getFullYear(), tetoBonus: 5 };
+let CONFIG = { dataPremio:'', ano: new Date().getFullYear(), tetoBonus: 5, totalRodadas: 4 };
 let ABA_ATUAL = 'anual';
 let SORT_STATE = { col:'scoreFinal', asc:false };
 let chartEvol = null;
@@ -800,12 +801,13 @@ function ordenarComDesempate(arr, keyScore) {
 // ============================================================
 function mudarAba(aba) {
   ABA_ATUAL = aba;
-  ['anual','periodo','regional','evolucao','cobertura','config'].forEach(a=>{
+  ['anual','periodo','regional','auditor','evolucao','cobertura','config'].forEach(a=>{
     document.getElementById('aba-'+a)?.classList.toggle('ativa', a===aba);
   });
   if (aba==='anual') renderAbaAnual();
   else if (aba==='periodo') renderAbaPeriodo();
   else if (aba==='regional') renderAbaRegional();
+  else if (aba==='auditor') renderAbaAuditor();
   else if (aba==='evolucao') renderAbaEvolucao();
   else if (aba==='cobertura') renderAbaCobertura();
   else if (aba==='config') renderAbaConfig();
@@ -920,7 +922,7 @@ function renderTabelaAnual() {
       <td style="font-size:12px;color:var(--text2)">${r.regional}</td>
       <td style="font-size:12px;color:var(--text2)">${r.auditor}</td>
       <td style="text-align:center;"><span class="score-pill ${scClass(r.mediaScore)}">${r.mediaScore}</span><div class="bar-wrap"><div class="bar-fill" style="width:${r.mediaScore}%;background:${barColor(r.mediaScore)}"></div></div></td>
-      <td style="text-align:center;">${r.auditorias}</td>
+      <td style="text-align:center;">${r.auditorias}<span style="color:var(--text3);font-size:10px;">/${CONFIG.totalRodadas||4}</span></td>
       <td style="text-align:center;"><span class="comp-val ${regCor[r.regularidade]}">${r.regularidade}</span><br><span style="font-size:9px;color:var(--text3)">σ ${r.desvio}</span></td>
       <td style="text-align:center;color:var(--green-dk)">${r.maxScore}</td>
       <td style="text-align:center;color:${r.minScore<60?'var(--red-dk)':'var(--text2)'}">${r.minScore}</td>
@@ -938,6 +940,115 @@ function metodHTML() {
       <div class="metod-item"><div class="dot" style="background:var(--green)"></div><span><strong>Canhoto 10</strong> — meta ≥95%</span></div>
       <div class="metod-item"><div class="dot" style="background:var(--green-dk)"></div><span><strong>+Bônus volume até ${CONFIG.tetoBonus}</strong> — canhotos+pedidos conferidos</span></div>
     </div></div>`;
+}
+
+
+// ---------- ABA POR AUDITOR ----------
+function consolidarPorAuditor(registros) {
+  const map = {};
+  registros.forEach(r => {
+    const aud = r.auditor || '—';
+    if (!map[aud]) map[aud] = { auditor: aud, filiais: new Set(), regs: [] };
+    map[aud].filiais.add(r.filial);
+    map[aud].regs.push(r);
+  });
+  const totalRod = CONFIG.totalRodadas || 4;
+  return Object.values(map).map(({ auditor, filiais, regs }) => {
+    const scores = regs.map(r => r.scoreFinal);
+    const media = scores.reduce((a,b) => a+b, 0) / (scores.length || 1);
+    const totalEsperado = filiais.size * totalRod;
+    const porFilial = {};
+    regs.forEach(r => { (porFilial[r.filial] = porFilial[r.filial]||[]).push(r); });
+    const mediasPorFilial = Object.entries(porFilial).map(([f, fr]) => ({
+      filial: f,
+      filialNome: fr[0].filialNome || f,
+      mediaScore: Math.round(fr.reduce((a,x) => a+x.scoreFinal,0)/fr.length * 10)/10,
+      rodadas: fr.length,
+    })).sort((a,b) => b.mediaScore - a.mediaScore);
+    return {
+      auditor,
+      totalFiliais: filiais.size,
+      totalAudits: regs.length,
+      totalEsperado,
+      progresso: Math.round(regs.length / Math.max(totalEsperado,1) * 100),
+      mediaScore: Math.round(media*10)/10,
+      mediasPorFilial,
+    };
+  }).sort((a,b) => b.mediaScore - a.mediaScore);
+}
+
+function renderAbaAuditor() {
+  const c = document.getElementById('conteudo-abas');
+  const auditores = consolidarPorAuditor(REGISTROS);
+  if (!auditores.length) {
+    c.innerHTML = '<div class="info-bar" style="margin:0;">Nenhum dado importado ainda.</div>';
+    return;
+  }
+  const totalRod = CONFIG.totalRodadas || 4;
+  const medals = ['🥇','🥈','🥉'];
+  const coresBorda = ['rgba(242,196,81,.4)','rgba(184,196,208,.3)','rgba(205,127,50,.3)'];
+  const coresFundo = ['rgba(242,196,81,.1)','rgba(184,196,208,.07)','rgba(205,127,50,.07)'];
+  const coresTxt = ['var(--ouro)','var(--prata)','var(--bronze)'];
+  c.innerHTML = `
+    <div class="info-bar">👤 <strong>Ranking Individual por Auditor</strong> — média das filiais de cada auditor ao longo das ${totalRod} rodadas previstas. Auditores são comparados pelo score médio — a quantidade de filiais não interfere no resultado final.</div>
+
+    <div class="secao"><div class="secao-titulo">Pódio dos Auditores</div>
+      <div class="premio-grid">
+        ${auditores.slice(0,3).map((a,i) => `
+          <div class="premio-card" style="border:1px solid ${coresBorda[i]};background:${coresFundo[i]};">
+            <div class="premio-medal">${medals[i]||'🏅'}</div>
+            <div class="premio-info">
+              <div class="premio-pos">${i+1}º Lugar · ${a.totalAudits}/${a.totalEsperado} auditorias (${a.progresso}%)</div>
+              <div class="premio-nome" style="font-size:16px;">${a.auditor}</div>
+              <div class="premio-score" style="color:${coresTxt[i]}">${a.mediaScore} pts</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="rank-wrap">
+      <div class="rank-header">Ranking Individual de Auditores — Score Médio por Filial × Rodadas</div>
+      <div style="overflow-x:auto;">
+        <table class="rank-table">
+          <thead><tr>
+            <th style="width:46px;text-align:center;">#</th>
+            <th>Auditor</th>
+            <th style="text-align:center;">Score Médio</th>
+            <th style="text-align:center;">Filiais</th>
+            <th style="text-align:center;">Rodadas</th>
+            <th style="text-align:center;">Progresso</th>
+            <th>Filiais Auditadas</th>
+          </tr></thead>
+          <tbody>
+            ${auditores.map((a,i) => {
+              const pos=i+1, posCls=pos===1?'ouro':pos===2?'prata':pos===3?'bronze':'normal';
+              const barW = a.progresso;
+              const detalhes = a.mediasPorFilial.map(f =>
+                \`<span class="cob-chip \${f.mediaScore>=70?'cob-ok':'cob-falta'}" style="font-size:10px;padding:2px 7px;" title="\${f.filialNome}">\${f.filial} · \${f.mediaScore}pts · \${f.rodadas}/${totalRod}rds</span>\`
+              ).join(' ');
+              return \`<tr class="\${pos<=3?'pos'+pos:''}">
+                <td style="text-align:center;"><div class="pos-badge \${posCls}">\${pos}</div></td>
+                <td><b style="font-size:14px;">\${a.auditor}</b></td>
+                <td style="text-align:center;"><span class="score-pill \${scClass(a.mediaScore)}">\${a.mediaScore}</span>
+                  <div class="bar-wrap"><div class="bar-fill" style="width:\${Math.min(a.mediaScore,105)/105*100}%;background:\${barColor(a.mediaScore)}"></div></div>
+                </td>
+                <td style="text-align:center;font-size:13px;">\${a.totalFiliais}</td>
+                <td style="text-align:center;font-weight:600;font-size:13px;">\${a.totalAudits}<span style="color:var(--text3);font-weight:400;">/\${a.totalEsperado}</span></td>
+                <td style="text-align:center;min-width:90px;">
+                  <div class="bar-wrap" style="height:8px;"><div class="bar-fill" style="width:\${barW}%;background:\${barW>=80?'var(--green)':barW>=50?'var(--amber)':'var(--red)'}"></div></div>
+                  <span style="font-size:9px;color:var(--text3)">\${a.progresso}% concluído</span>
+                </td>
+                <td><div style="display:flex;flex-wrap:wrap;gap:4px;padding:2px 0;">\${detalhes}</div></td>
+              \`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;">
+      <strong>Como funciona:</strong> Score do auditor = média simples de <em>todas</em> as auditorias realizadas nas suas filiais, incluindo todas as rodadas. O critério é justo pois cada auditor é avaliado pelas suas próprias filiais ao longo das ${totalRod} rodadas.
+      Ajuste o número de rodadas previstas nas <strong>⚙ Configurações</strong>.
+    </div>`;
 }
 
 // ---------- ABA POR PERÍODO ----------
@@ -1534,6 +1645,7 @@ function renderAbaConfig(){
             <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;">Data da Premiação</span><input id="cfg-data-premio" type="text" placeholder="15/12/2026" value="${CONFIG.dataPremio||''}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;"></div>
             <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;">Ano de Referência</span><input id="cfg-ano" type="number" value="${CONFIG.ano}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;"></div>
             <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;">Teto do Bônus de Volume</span><input id="cfg-bonus" type="number" step="0.5" value="${CONFIG.tetoBonus}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;"></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;">Rodadas por Filial (Previstas)</span><input id="cfg-rodadas" type="number" min="1" max="12" value="${CONFIG.totalRodadas||4}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;" title="Quantas auditorias são esperadas por filial até a premiação"></div>
             <button class="btn-topo" style="margin-top:4px;" onclick="salvarConfigParams()">Salvar Parâmetros</button>
           </div>
         </div>
@@ -1592,6 +1704,7 @@ function salvarConfigParams(){
   CONFIG.dataPremio=document.getElementById('cfg-data-premio').value||'';
   CONFIG.ano=parseInt(document.getElementById('cfg-ano').value)||new Date().getFullYear();
   CONFIG.tetoBonus=parseFloat(document.getElementById('cfg-bonus').value)||5;
+  CONFIG.totalRodadas=parseInt(document.getElementById('cfg-rodadas')?.value)||4;
   showConfigStatus('ok','Parâmetros salvos!');
   if(REGISTROS.length) processarERenderizar();
 }
