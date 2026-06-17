@@ -237,6 +237,7 @@ canvas{max-width:100%;}
   <div id="sync-indicator" style="display:inline-flex;align-items:center;padding:5px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--border);margin-right:4px;" title="Status da sincronização com a nuvem">☁ <span style="font-size:11px;margin-left:4px;color:var(--text3);">Sem sync</span></div>
   <button id="btn-acoes-mobile" style="display:none;" onclick="toggleAcoesMobile()">&#9776; A&ccedil;&otilde;es</button>
   <div class="topo-btns" id="topo-btns-wrap">
+    <button class="btn-topo primary" onclick="triggerImport()" title="Importar novas auditorias de Pedido/Canhoto e Vencidos (.json/.xlsx)">📥 Importar Auditoria</button>
     <button class="btn-topo" onclick="abrirModalFaturamento()" title="Ajuste manual de faturamento">💰 Faturamentos</button>
     <button class="btn-topo" onclick="document.getElementById('inp-fat-json').click()" title="Importar base de faturamento JSON">📊 Base Fat. (JSON)</button>
     <input type="file" id="inp-fat-json" accept=".json" style="display:none;" onchange="processarFatJSON(this)">
@@ -362,6 +363,7 @@ const BASE_FILIAIS = {"MTZ": {"filial": 1, "loja": "MATRIZ", "estado": "GO", "ge
 let ARQUIVOS = [];        // arquivos importados
 let FATURAMENTOS = {};    // { sigla: valor }  (resultado final usado no score)
 let FAT_HISTORICO = {};  // { sigla: { 'MM/YYYY': valor } } — histórico por período
+let FAT_BASE_INFO = null; // { arquivo, geradoEm, periodoIniDisplay, periodoFimDisplay, qtdFiliais, qtdPeriodos, importadoEm }
 let FAT_ACUM = {};        // { sigla: {valor, chaves:Set, periodoInicio, periodoFim, importadoEm, linhas} }
 let OBSERVACOES = {};     // { chave: texto }
 let REGISTROS = [];       // todos os registros período a período (mesclados)
@@ -395,7 +397,8 @@ function processarArquivosImportados(input) {
     });
     renderArquivos();
     input.value = '';
-    if (REGISTROS.length && getBinId() && getMasterKey()) { processarERenderizar(); }
+    processarERenderizar();
+    if (getBinId() && getMasterKey()) syncPush();
   });
 }
 
@@ -1494,9 +1497,9 @@ function exportarRankingXLS() {
 }
 
 function salvarRankingJSON() {
-  if(!REGISTROS.length){ alert('Sem dados.'); return; }
+  if(!REGISTROS.length && !Object.keys(FAT_HISTORICO).length){ alert('Sem dados.'); return; }
   const dt=new Date().toLocaleDateString('pt-BR').split('/').join('-');
-  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,fatHistorico:FAT_HISTORICO,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS};
+  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,fatHistorico:FAT_HISTORICO,fatBaseInfo:FAT_BASE_INFO,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=`Ranking_Backup_${dt}.json`;a.click();
@@ -1511,11 +1514,13 @@ function lerBackupJSON(input) {
       const d=JSON.parse(e.target.result);
       if(d.faturamentos) FATURAMENTOS=d.faturamentos;
       if(d.fatHistorico) FAT_HISTORICO=d.fatHistorico;
+      if(d.fatBaseInfo) FAT_BASE_INFO=d.fatBaseInfo;
       if(d.observacoes) OBSERVACOES=d.observacoes;
       if(d.config) CONFIG=Object.assign(CONFIG,d.config);
       if(d.arquivos) ARQUIVOS=d.arquivos;
       if(d.arquivos && d.arquivos.length) { processarERenderizar(); }
       else if(d.registros){ REGISTROS=d.registros; document.getElementById('tela-import').style.display='none'; document.getElementById('painel').classList.remove('hidden'); mudarAba('anual'); }
+      else if(d.fatHistorico){ document.getElementById('tela-import').style.display='none'; document.getElementById('painel').classList.remove('hidden'); mudarAba('anual'); }
       alert('Dados carregados.');
     }catch(err){ alert('Erro: '+err.message); }
   };
@@ -1525,7 +1530,7 @@ function lerBackupJSON(input) {
 
 function limparTudo() {
   if(!confirm('Limpar todos os dados? Esta ação não pode ser desfeita.')) return;
-  ARQUIVOS=[];FATURAMENTOS={};FAT_HISTORICO={};OBSERVACOES={};REGISTROS=[];FAT_ACUM={};
+  ARQUIVOS=[];FATURAMENTOS={};FAT_HISTORICO={};FAT_BASE_INFO=null;OBSERVACOES={};REGISTROS=[];FAT_ACUM={};
   document.getElementById('tela-import').style.display='block';
   document.getElementById('painel').classList.add('hidden');
   document.getElementById('arqs-wrap').innerHTML='';
@@ -1616,9 +1621,10 @@ async function syncPull(){
   setSyncStatus('syncing','Carregando...');
   try{
     const remote=await jbinRead(binId, getReadKey());
-    if(remote && (Array.isArray(remote.registros)&&remote.registros.length || (remote.arquivos&&remote.arquivos.length))){
+    if(remote && (Array.isArray(remote.registros)&&remote.registros.length || (remote.arquivos&&remote.arquivos.length) || (remote.fatHistorico&&Object.keys(remote.fatHistorico).length))){
       if(remote.faturamentos) FATURAMENTOS=remote.faturamentos;
       if(remote.fatHistorico) FAT_HISTORICO=remote.fatHistorico;
+      if(remote.fatBaseInfo) FAT_BASE_INFO=remote.fatBaseInfo;
       if(remote.observacoes) OBSERVACOES=remote.observacoes;
       if(remote.config) CONFIG=Object.assign(CONFIG, remote.config);
       if(remote.arquivos && remote.arquivos.length){
@@ -1626,6 +1632,10 @@ async function syncPull(){
         processarERenderizar();
       } else if(remote.registros){
         REGISTROS=remote.registros;
+        document.getElementById('tela-import').style.display='none';
+        document.getElementById('painel').classList.remove('hidden');
+        mudarAba(ABA_ATUAL);
+      } else if(remote.fatHistorico){
         document.getElementById('tela-import').style.display='none';
         document.getElementById('painel').classList.remove('hidden');
         mudarAba(ABA_ATUAL);
@@ -1649,7 +1659,7 @@ async function syncPush(){
   setSyncStatus('syncing','Publicando...');
   try{
     const payload={
-      registros:REGISTROS, faturamentos:FATURAMENTOS, fatHistorico:FAT_HISTORICO, observacoes:OBSERVACOES,
+      registros:REGISTROS, faturamentos:FATURAMENTOS, fatHistorico:FAT_HISTORICO, fatBaseInfo:FAT_BASE_INFO, observacoes:OBSERVACOES,
       config:CONFIG, arquivos:ARQUIVOS,
       lastUpdate:new Date().toISOString(), app:'agroquima-ranking'
     };
@@ -1726,6 +1736,19 @@ function renderAbaConfig(){
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="chart-card" style="max-width:1000px;margin-top:20px;">
+      <div class="chart-title">💰 Base de Faturamento</div>
+      ${FAT_BASE_INFO ? `
+        <div style="font-size:13px;line-height:1.8;">
+          <span style="color:var(--green-dk);font-weight:700;">✔ Carregada</span> em <strong>${FAT_BASE_INFO.importadoEm}</strong><br>
+          Arquivo: <code style="font-size:11px;background:var(--bg3);padding:1px 5px;border-radius:3px;">${FAT_BASE_INFO.arquivo}</code><br>
+          Gerada pelo relatório em: <strong>${geradoEmDisplay(FAT_BASE_INFO.geradoEm)||'—'}</strong><br>
+          Cobertura: <strong>${FAT_BASE_INFO.periodoIniDisplay}</strong> até <strong>${FAT_BASE_INFO.periodoFimDisplay}</strong><br>
+          ${FAT_BASE_INFO.qtdFiliais} filiais · ${FAT_BASE_INFO.qtdPeriodos} valores mensais aplicados<br>
+          <span style="font-size:11px;color:var(--text3);">Meses sem dado (zerados/não computados) são ignorados e não sobrescrevem valores já existentes.</span>
+        </div>` : `<span style="color:var(--text3);">⚠ Nenhuma base de faturamento carregada ainda. Use o botão <strong>📊 Base Fat. (JSON)</strong> no topo.</span>`}
     </div>`;
 }
 
@@ -1891,7 +1914,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
           const pa=a.split('/'), pb=b.split('/');
           return (parseInt(pa[1])*12+parseInt(pa[0])) - (parseInt(pb[1])*12+parseInt(pb[0]));
         });
-        _fatBaseData = { fat: fat, ate: ate, arquivo: file.name, periodos: periodos, siglas: siglas };
+        _fatBaseData = { fat: fat, ate: ate, arquivo: file.name, periodos: periodos, siglas: siglas, geradoEm: json.gerado_em||'', periodoIni: (json.periodo&&json.periodo.ini)||periodos[0]||'' };
         // Prévia
         const ateDisplay = ate.split('-')[1].padStart(2,'0') + '/' + ate.split('-')[0];
         document.getElementById('fat-base-sub').innerHTML =
@@ -1919,18 +1942,40 @@ window.addEventListener('DOMContentLoaded', ()=>{
     reader.readAsText(file);
   }
 
+  function ymDisplay(ym) {
+    if (!ym) return '—';
+    const p = String(ym).split('-');
+    return p[1] ? (p[1].padStart(2,'0') + '/' + p[0]) : ym;
+  }
+  function geradoEmDisplay(s) {
+    if (!s) return '';
+    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    return m ? (m[3]+'/'+m[2]+'/'+m[1]+' '+m[4]+':'+m[5]) : s;
+  }
   function confirmarFatBase() {
     if (!_fatBaseData) return;
     const fat = _fatBaseData.fat, siglas = _fatBaseData.siglas;
+    let qtdAplicados = 0;
     siglas.forEach(function(s) {
       if (!FAT_HISTORICO[s]) FAT_HISTORICO[s] = {};
       Object.keys(fat[s]).forEach(function(periodo) {
-        if (fat[s][periodo] > 0) FAT_HISTORICO[s][periodo] = Math.round(fat[s][periodo]*100)/100;
+        // ignora meses zerados/sem dado — não sobrescreve histórico existente com 0
+        if (fat[s][periodo] > 0) { FAT_HISTORICO[s][periodo] = Math.round(fat[s][periodo]*100)/100; qtdAplicados++; }
       });
     });
+    FAT_BASE_INFO = {
+      arquivo: _fatBaseData.arquivo,
+      geradoEm: _fatBaseData.geradoEm||'',
+      periodoIniDisplay: ymDisplay(_fatBaseData.periodoIni),
+      periodoFimDisplay: ymDisplay(_fatBaseData.ate),
+      qtdFiliais: siglas.length,
+      qtdPeriodos: qtdAplicados,
+      importadoEm: new Date().toLocaleString('pt-BR'),
+    };
     _fatBaseData = null;
     fecharModal('modal-fat-base');
     processarERenderizar();
+    if (ABA_ATUAL==='config') renderAbaConfig();
     const total = Object.values(FAT_HISTORICO).reduce(function(s,v){ return s+Object.keys(v).length; }, 0);
     alert('Base importada! ' + total + ' registros de faturamento no histórico.');
   }
