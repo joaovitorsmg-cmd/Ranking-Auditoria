@@ -188,6 +188,21 @@ th.sorted-asc::after{content:' ↑'} th.sorted-desc::after{content:' ↓'}
 .chart-title{font-size:13px;font-weight:700;margin-bottom:14px;}
 canvas{max-width:100%;}
 
+/* Guia de Regras */
+.guia-secao-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--brand-dk);background:rgba(43,127,212,.12);border:1px solid rgba(43,127,212,.3);border-radius:20px;padding:4px 12px;margin-bottom:14px;}
+.guia-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:28px;}
+.guia-card{background:var(--bg2);border:1px solid var(--border);border-top:3px solid var(--brand);border-radius:var(--r);padding:16px 18px;}
+.guia-card .guia-num{font-size:20px;font-weight:800;color:var(--brand-dk);margin-bottom:6px;}
+.guia-card .guia-titulo{font-size:13px;font-weight:700;margin-bottom:8px;letter-spacing:.02em;}
+.guia-card .guia-txt{font-size:12px;color:var(--text2);line-height:1.6;}
+.guia-card .guia-nota{font-size:10.5px;color:var(--text3);margin-top:10px;border-top:1px solid var(--border);padding-top:8px;}
+.guia-card.cor-red{border-top-color:var(--red);}
+.guia-card.cor-amber{border-top-color:var(--amber);}
+.guia-card.cor-green{border-top-color:var(--green);}
+.guia-card.cor-ouro{border-top-color:var(--ouro);}
+.guia-faixa{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;margin-bottom:8px;font-size:12px;}
+.guia-faixa b{min-width:80px;}
+
 /* Certificado */
 #cert-render{background:#fff;color:#1a2e4a;width:1000px;padding:60px;font-family:Georgia,serif;}
 
@@ -345,6 +360,7 @@ canvas{max-width:100%;}
       <div class="aba" onclick="mudarAba('auditor')" id="aba-auditor">👤 Por Auditor</div>
       <div class="aba" onclick="mudarAba('evolucao')" id="aba-evolucao">📈 Evolução</div>
       <div class="aba" onclick="mudarAba('cobertura')" id="aba-cobertura">✅ Cobertura</div>
+      <div class="aba" onclick="mudarAba('guia')" id="aba-guia">📖 Guia</div>
       <div class="aba" onclick="mudarAba('config')" id="aba-config" style="margin-left:auto;">⚙ Configurações</div>
     </div>
 
@@ -934,7 +950,7 @@ function ordenarComDesempate(arr, keyScore) {
 // ============================================================
 function mudarAba(aba) {
   ABA_ATUAL = aba;
-  ['anual','periodo','regional','auditor','evolucao','cobertura','config'].forEach(a=>{
+  ['anual','periodo','regional','auditor','evolucao','cobertura','guia','config'].forEach(a=>{
     document.getElementById('aba-'+a)?.classList.toggle('ativa', a===aba);
   });
   if (aba==='anual') renderAbaAnual();
@@ -943,6 +959,7 @@ function mudarAba(aba) {
   else if (aba==='auditor') renderAbaAuditor();
   else if (aba==='evolucao') renderAbaEvolucao();
   else if (aba==='cobertura') renderAbaCobertura();
+  else if (aba==='guia') renderAbaGuia();
   else if (aba==='config') renderAbaConfig();
 }
 
@@ -1373,6 +1390,129 @@ function renderAbaCobertura() {
     ${faltantes.length?`<div class="secao"><div class="secao-titulo">⚠ Pendentes de Auditoria</div>
       <div class="cobertura-grid">${faltantes.sort().map(s=>`<span class="cob-chip cob-falta">${s} · ${BASE_FILIAIS[s]?.loja||''} · ${BASE_FILIAIS[s]?.auditor||''}</span>`).join('')}</div>
     </div>`:''}`;
+}
+
+// ---------- ABA GUIA DE REGRAS ----------
+function renderAbaGuia() {
+  const c = document.getElementById('conteudo-abas');
+  const temNota = Object.keys(AUDITORIA_NOTAS).length > 0;
+  c.innerHTML = `
+    <div class="info-bar">📖 <strong>Guia de Regras do Ranking</strong> — documento de referência explicando como o score de cada filial é calculado, as faixas de classificação e as regras de tolerância zero. Use o botão abaixo para exportar isoladamente em PNG ou PDF.</div>
+    <div style="margin-bottom:14px;display:flex;gap:8px;">
+      <button class="btn-topo" onclick="exportarGuiaPNG()">🖼 Exportar PNG</button>
+      <button class="btn-topo" onclick="exportarGuiaPDF()">📄 Exportar PDF</button>
+    </div>
+    <div id="guia-render" style="background:var(--bg);padding:20px;border-radius:var(--r);">
+
+      <div class="guia-secao-tag">COMO O SCORE É CALCULADO</div>
+      <div class="guia-grid">
+        <div class="guia-card cor-red">
+          <div class="guia-num">40 pts</div>
+          <div class="guia-titulo">🔴 Semente</div>
+          <div class="guia-txt">Tudo ou nada. A filial só ganha os 40 pontos se <strong>não houver nenhuma pendência de semente</strong>. Qualquer pendência, mesmo uma só, zera este critério.</div>
+          <div class="guia-nota">⚠ Tolerância zero — risco financeiro direto.</div>
+        </div>
+        <div class="guia-card" style="border-top-color:var(--brand);">
+          <div class="guia-num">30 pts</div>
+          <div class="guia-titulo">🔵 Pedido</div>
+          <div class="guia-txt">Tudo ou nada. Só pontua se o <strong>% de Pedido Confirmado for ≥ 95%</strong>. Abaixo disso (mesmo 94,9%) o critério vale 0 — não existe nota parcial.</div>
+          <div class="guia-nota">Meta obrigatória em todas as auditorias do ano.</div>
+        </div>
+        <div class="guia-card cor-amber">
+          <div class="guia-num">20 pts</div>
+          <div class="guia-titulo">🟡 Vencidos</div>
+          <div class="guia-txt">Calculado pelo <strong>% do valor vencido sobre o faturamento</strong> da filial no período. Quanto menor esse %, mais próximo dos 20 pontos (faixas: ≤0,5% nota máxima · ≤1% 35 · ≤2% 15 · acima 0).</div>
+          <div class="guia-nota">Consulte o valor de faturamento usado na aba "Por Período".</div>
+        </div>
+        <div class="guia-card cor-green">
+          <div class="guia-num">10 pts</div>
+          <div class="guia-titulo">🟢 Canhoto</div>
+          <div class="guia-txt">Tudo ou nada. Só pontua se o <strong>% de Canhoto Confirmado for ≥ 95%</strong>. Abaixo disso o critério vale 0.</div>
+          <div class="guia-nota">Meta obrigatória em todas as auditorias do ano.</div>
+        </div>
+        <div class="guia-card" style="border-top-color:var(--green-dk);">
+          <div class="guia-num">+${CONFIG.tetoBonus} pts</div>
+          <div class="guia-titulo">⭐ Bônus de Volume</div>
+          <div class="guia-txt">Bônus relativo: a filial com maior volume de pedidos+canhotos conferidos no período ganha o bônus máximo; as demais recebem proporcionalmente ao seu volume.</div>
+          <div class="guia-nota">Soma-se ao score do período (não entra no máximo de 100).</div>
+        </div>
+        <div class="guia-card cor-ouro">
+          <div class="guia-num">${temNota?'20 pts':'—'}</div>
+          <div class="guia-titulo">🏆 Nota Média de Auditoria</div>
+          <div class="guia-txt">Vinda de planilha anual separada (peso igual ao da Semente). Só entram na média auditorias com <strong>Status = "Finalizada"</strong> — "Em andamento" é ignorada mesmo com pontuação lançada.</div>
+          <div class="guia-nota">${temNota?'Carregada — Semente passa a valer 20 + Nota 20 (peso igual) para as filiais com nota.':'Ainda não carregada — filiais usam a fórmula padrão (Semente 40).'}</div>
+        </div>
+      </div>
+
+      <div class="guia-secao-tag">FAIXAS DE CLASSIFICAÇÃO</div>
+      <div class="chart-card">
+        <div class="guia-faixa" style="background:rgba(242,196,81,.12);border:1px solid rgba(242,196,81,.35);"><b style="color:var(--ouro)">≥ 90</b> 🥇 <strong>Ótima</strong> — desempenho exemplar, candidata a pódio.</div>
+        <div class="guia-faixa" style="background:rgba(53,184,122,.1);border:1px solid rgba(53,184,122,.3);"><b style="color:var(--green-dk)">70 – 89,9</b> ✅ <strong>Boa</strong> — dentro da meta, com espaço para evoluir.</div>
+        <div class="guia-faixa" style="background:rgba(224,167,58,.1);border:1px solid rgba(224,167,58,.3);"><b style="color:var(--amber-dk)">40 – 69,9</b> ⚠ <strong>Atenção</strong> — pendências relevantes, requer ação do supervisor.</div>
+        <div class="guia-faixa" style="background:rgba(226,92,77,.1);border:1px solid rgba(226,92,77,.3);"><b style="color:var(--red-dk)">&lt; 40</b> 🔴 <strong>Crítica</strong> — risco alto, prioridade de cobrança imediata.</div>
+        <div class="guia-nota" style="margin-top:4px;">As faixas usam o mesmo score (0–100+bônus) exibido em todas as abas do painel — a cor da barra/pílula de cada filial já segue essa régua.</div>
+      </div>
+
+      <div class="guia-secao-tag">REGRAS DE TOLERÂNCIA ZERO</div>
+      <div class="guia-grid">
+        <div class="guia-card cor-red">
+          <div class="guia-titulo">🌱 Semente pendente</div>
+          <div class="guia-txt">Qualquer semente pendente <strong>zera os 40 pontos</strong> do critério, independente da quantidade — não há gradação. É o critério de maior peso individual e mais rígido do score.</div>
+        </div>
+        <div class="guia-card" style="border-top-color:var(--brand);">
+          <div class="guia-titulo">📦 Pedido / Canhoto abaixo de 95%</div>
+          <div class="guia-txt">Não existe pontuação parcial. 94% confirmado vale exatamente o mesmo que 0%: <strong>zero pontos</strong> naquele critério. A meta de 95% é obrigatória em todas as auditorias para manter a média anual alta.</div>
+        </div>
+        <div class="guia-card" style="border-top-color:var(--text3);">
+          <div class="guia-titulo">🔁 Reincidência de Vencidos</div>
+          <div class="guia-txt">Filiais com valor de vencidos em <strong>2 ou mais auditorias</strong> no ano recebem o selo REINC e perdem critérios de desempate, mesmo com score igual a outra filial.</div>
+        </div>
+        <div class="guia-card" style="border-top-color:var(--text3);">
+          <div class="guia-titulo">🕐 Dado desatualizado (12M+)</div>
+          <div class="guia-txt">Se a última auditoria da filial tem mais de <strong>12 meses</strong>, ela recebe o selo 12M+ sinalizando que o dado pode não refletir a realidade atual da loja.</div>
+        </div>
+      </div>
+
+      <div class="guia-secao-tag">FREQUÊNCIA E PERÍODO DE AVALIAÇÃO</div>
+      <div class="chart-card">
+        <div class="guia-txt" style="margin-bottom:10px;"><strong>Por Auditoria (aba "Por Período"):</strong> cada visita gera um score isolado daquele mês/rodada — serve para acompanhamento mês a mês, não é o ranking oficial.</div>
+        <div class="guia-txt" style="margin-bottom:10px;"><strong>Ranking Anual (aba "🏆 Ranking Anual"):</strong> é o <strong>ranking oficial da premiação</strong>. Consolida a média de <em>todas</em> as auditorias (todas as rodadas) que a filial teve no ano de referência (${CONFIG.ano}). Rodadas previstas por filial: ${CONFIG.totalRodadas||4}.</div>
+        <div class="guia-txt"><strong>Cobertura:</strong> antes de premiar, confira na aba "✅ Cobertura" se todas as filiais já passaram por auditoria no ano — comparar um universo incompleto pode ser injusto.</div>
+      </div>
+
+    </div>`;
+}
+
+function exportarGuiaPNG() {
+  const el = document.getElementById('guia-render');
+  if (!el) return;
+  html2canvas(el, {scale:2, backgroundColor:'#0a1322'}).then(canvas => {
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `Guia_Regras_Ranking_Auditoria_${new Date().toLocaleDateString('pt-BR').split('/').join('-')}.png`;
+    a.click();
+  });
+}
+
+function exportarGuiaPDF() {
+  const el = document.getElementById('guia-render');
+  if (!el) return;
+  html2canvas(el, {scale:2, backgroundColor:'#0a1322'}).then(canvas => {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+    const pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW, imgH = (canvas.height*imgW)/canvas.width;
+    let heightLeft = imgH, position = 0;
+    pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',0,position,imgW,imgH);
+    heightLeft -= pageH;
+    while (heightLeft > 0) {
+      position = heightLeft - imgH;
+      pdf.addPage();
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',0,position,imgW,imgH);
+      heightLeft -= pageH;
+    }
+    pdf.save(`Guia_Regras_Ranking_Auditoria_${new Date().toLocaleDateString('pt-BR').split('/').join('-')}.pdf`);
+  });
 }
 
 // ============================================================
