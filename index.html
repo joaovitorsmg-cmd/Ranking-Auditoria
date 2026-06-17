@@ -240,30 +240,27 @@ canvas{max-width:100%;}
     <button class="btn-topo" onclick="abrirModalFaturamento()" title="Ajuste manual de faturamento">💰 Faturamentos</button>
     <button class="btn-topo" onclick="document.getElementById('inp-fat-json').click()" title="Importar base de faturamento JSON">📊 Base Fat. (JSON)</button>
     <input type="file" id="inp-fat-json" accept=".json" style="display:none;" onchange="processarFatJSON(this)">
-    <button class="btn-topo" onclick="requirePwd('Sincronizar com a nuvem','Digite a senha de operador para publicar os dados na nuvem.',syncPush)" title="Publicar dados na nuvem (JSONBin)">☁ Publicar</button>
+    <button class="btn-topo" onclick="syncPush()" title="Publicar dados na nuvem (JSONBin)">☁ Publicar</button>
     <button class="btn-topo" onclick="abrirAbaConfig()" title="Configurar nuvem JSONBin e parâmetros">⚙ Configurações</button>
     <button class="btn-topo primary" onclick="exportarRankingXLS()">📥 Exportar (.xlsx)</button>
     <button class="btn-topo" onclick="salvarRankingJSON()">💾 Salvar (.json)</button>
-    <button class="btn-topo" onclick="requirePwd('Carregar dados','Digite a senha de operador para carregar dados.',()=>document.getElementById('inp-backup').click())">📂 Carregar (.json)</button>
-    <button class="btn-topo danger" onclick="requirePwd('Limpar tudo','Digite a senha de operador para limpar todos os dados.',limparTudo)">✕ Limpar</button>
+    <button class="btn-topo" onclick="document.getElementById('inp-backup').click()">📂 Carregar (.json)</button>
+    <button class="btn-topo" onclick="abrirGerenciarArquivos()" title="Excluir um arquivo importado específico">🗑 Arquivos</button>
+    <button class="btn-topo danger" onclick="limparTudo()">✕ Limpar</button>
   </div>
   </div><!-- /topo-btns-wrap -->
   <input type="file" id="inp-import" accept=".json,.xlsx,.xls" multiple style="display:none;" onchange="processarArquivosImportados(this)">
   <input type="file" id="inp-backup" accept=".json" style="display:none;" onchange="lerBackupJSON(this)">
 </div>
 
-<!-- MODAL SENHA -->
-<div class="modal-overlay hidden" id="modal-pwd">
-  <div class="modal-box" style="width:400px;">
-    <div class="modal-title" style="display:flex;align-items:center;gap:10px;">🔒 <span id="pwd-title">Confirmar acesso</span></div>
-    <p style="margin:6px 0 14px;font-size:13px;color:var(--text2);line-height:1.6;" id="pwd-desc">Digite a senha de operador para continuar.</p>
-    <input type="password" id="pwd-input" placeholder="Senha" autocomplete="off"
-      style="width:100%;padding:11px 14px;border:1px solid var(--border2);border-radius:6px;background:var(--bg3);color:var(--text);font-size:15px;"
-      onkeydown="if(event.key==='Enter')submitPwd();">
-    <div id="pwd-error" style="display:none;color:var(--red-dk);font-size:12px;margin-top:8px;font-weight:600;">⚠ Senha incorreta. Tente novamente.</div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">
-      <button class="btn-modal sec" onclick="cancelPwd()">Cancelar</button>
-      <button class="btn-modal primary" onclick="submitPwd()">🔓 Confirmar</button>
+<!-- MODAL GERENCIAR ARQUIVOS -->
+<div class="modal-overlay hidden" id="modal-arqs">
+  <div class="modal-box" style="max-width:700px;">
+    <div class="modal-title">🗑 Arquivos Importados</div>
+    <div class="modal-sub">Exclua um arquivo importado errado. A exclusão é permanente e os dados são recalculados e sincronizados com a nuvem na hora.</div>
+    <div id="ger-arqs-wrap" style="max-height:420px;overflow-y:auto;margin-top:12px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn-modal sec" onclick="fecharModal('modal-arqs')">Fechar</button>
     </div>
   </div>
 </div>
@@ -385,9 +382,7 @@ function infoFilial(sigla) {
 // IMPORTAÇÃO DE ARQUIVOS
 // ============================================================
 function triggerImport(){
-  requirePwd('Importar arquivos','Digite a senha de operador para importar dados.',()=>{
-    document.getElementById('inp-import').click();
-  });
+  document.getElementById('inp-import').click();
 }
 function processarArquivosImportados(input) {
   const files = Array.from(input.files);
@@ -627,12 +622,43 @@ function renderArquivos() {
 }
 
 function removerArquivo(id) {
-  requirePwd('Excluir arquivo','Digite a senha de operador para excluir este dado.',()=>{
-    ARQUIVOS = ARQUIVOS.filter(a => String(a.id)!==String(id));
-    renderArquivos();
-    if (REGISTROS.length) processarERenderizar();
-    if (getBinId() && getMasterKey()) syncPush();
-  });
+  if(!confirm('Excluir este arquivo permanentemente e sincronizar?')) return;
+  ARQUIVOS = ARQUIVOS.filter(a => String(a.id)!==String(id));
+  renderArquivos();
+  renderGerenciarArquivos();
+  if (REGISTROS.length) processarERenderizar();
+  if (getBinId() && getMasterKey()) syncPush();
+}
+
+function abrirGerenciarArquivos() {
+  renderGerenciarArquivos();
+  document.getElementById('modal-arqs').classList.remove('hidden');
+}
+
+function renderGerenciarArquivos() {
+  const wrap = document.getElementById('ger-arqs-wrap');
+  if (!wrap) return;
+  if (!ARQUIVOS.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px;">Nenhum arquivo importado.</div>'; return; }
+  wrap.innerHTML = ARQUIVOS.map(a => {
+    const cls = a.tipo==='ped'?'ped':a.tipo==='venc'?'venc':a.tipo==='fat'?'venc':'err';
+    const lbl = a.tipo==='ped'?'📋 Pedido/Canhoto':a.tipo==='venc'?'📦 Vencidos':a.tipo==='fat'?'💰 Faturamento':'⚠ Erro';
+    const icon = a.tipo==='ped'?'📋':a.tipo==='venc'?'📦':a.tipo==='fat'?'💰':'❌';
+    let meta;
+    if (a.tipo==='err') meta = a.erro;
+    else if (a.tipo==='fat') {
+      const nFil = Object.keys(a.porFilial||{}).length;
+      meta = `${nFil} filial(is) · ${a.qtdLinhas} vendas · período ${a.periodoInicio||'?'} a ${a.periodoFim||'?'} · importado ${a.importadoEm}`;
+    } else {
+      const qtd = a.dados ? a.dados.length : 0;
+      meta = `${qtd} registro${qtd!==1?'s':''}`;
+    }
+    return `<div class="arq-card">
+      <div class="arq-icon">${icon}</div>
+      <div class="arq-info"><div class="arq-nome">${a.nome}</div><div class="arq-meta">${meta}</div></div>
+      <span class="arq-tipo ${cls}">${lbl}</span>
+      <button class="btn-rm" onclick="removerArquivo('${a.id}')">✕</button>
+    </div>`;
+  }).join('');
 }
 
 function onDragOver(e){e.preventDefault();document.getElementById('drop-zone').classList.add('over');}
@@ -642,13 +668,11 @@ function onDrop(e){
   document.getElementById('drop-zone').classList.remove('over');
   const files = Array.from(e.dataTransfer.files);
   if(!files.length) return;
-  requirePwd('Importar arquivos','Digite a senha de operador para importar dados.',()=>{
-    const inp = document.getElementById('inp-import');
-    const dt = new DataTransfer();
-    files.forEach(f=>dt.items.add(f));
-    inp.files = dt.files;
-    processarArquivosImportados(inp);
-  });
+  const inp = document.getElementById('inp-import');
+  const dt = new DataTransfer();
+  files.forEach(f=>dt.items.add(f));
+  inp.files = dt.files;
+  processarArquivosImportados(inp);
 }
 
 // ============================================================
@@ -896,11 +920,9 @@ function mudarAba(aba) {
 }
 
 function abrirAbaConfig() {
-  requirePwd('Configurações (área restrita)','Digite a senha de operador para acessar as configurações da nuvem.',()=>{
-    document.getElementById('painel').classList.remove('hidden');
-    document.getElementById('tela-import').style.display='none';
-    mudarAba('config');
-  });
+  document.getElementById('painel').classList.remove('hidden');
+  document.getElementById('tela-import').style.display='none';
+  mudarAba('config');
 }
 
 function scClass(s){ return s>=90?'sp-ouro':s>=70?'sp-verde':s>=40?'sp-amar':'sp-verm'; }
@@ -1510,38 +1532,6 @@ function limparTudo() {
 }
 
 // ============================================================
-// TRAVA DE SENHA DE OPERADOR
-// ============================================================
-const OPERATOR_PWD = 'Rank@2026';
-let pwdCallback = null;
-
-function requirePwd(title, desc, callback) {
-  pwdCallback = callback;
-  document.getElementById('pwd-title').textContent = title || 'Confirmar acesso';
-  document.getElementById('pwd-desc').textContent = desc || 'Digite a senha de operador para continuar.';
-  document.getElementById('pwd-input').value = '';
-  document.getElementById('pwd-error').style.display = 'none';
-  document.getElementById('modal-pwd').classList.remove('hidden');
-  setTimeout(()=>document.getElementById('pwd-input').focus(), 100);
-}
-function submitPwd() {
-  const val = document.getElementById('pwd-input').value;
-  if (val === OPERATOR_PWD) {
-    document.getElementById('modal-pwd').classList.add('hidden');
-    const cb = pwdCallback; pwdCallback = null;
-    if (cb) cb();
-  } else {
-    document.getElementById('pwd-error').style.display = 'block';
-    document.getElementById('pwd-input').value = '';
-    document.getElementById('pwd-input').focus();
-  }
-}
-function cancelPwd() {
-  document.getElementById('modal-pwd').classList.add('hidden');
-  pwdCallback = null;
-}
-
-// ============================================================
 // SINCRONIZAÇÃO JSONBIN (mesmo padrão do painel de vencidos)
 // ============================================================
 const JBIN_CFG_KEY = 'agroquima_ranking_jbin_cfg';
@@ -1706,7 +1696,7 @@ function renderAbaConfig(){
           <button class="btn-az" style="font-size:12px;padding:8px 14px;margin:0;" onclick="handleSaveConfig()">💾 Salvar Config</button>
           <button class="btn-topo" onclick="handleCreateBin()">➕ Criar Bin</button>
           <button class="btn-topo" onclick="handleTestConnection()">🔌 Testar Conexão</button>
-          <button class="btn-topo primary" onclick="requirePwd('Publicar para todos','Digite a senha de operador para gerar o arquivo publicável.',handlePublicar)">📤 Publicar para todos</button>
+          <button class="btn-topo primary" onclick="handlePublicar()">📤 Publicar para todos</button>
         </div>
         <div id="config-status" style="display:none;margin-top:14px;padding:10px 14px;border-radius:8px;font-size:13px;white-space:pre-wrap;line-height:1.5;"></div>
       </div>
