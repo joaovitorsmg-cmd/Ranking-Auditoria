@@ -1390,12 +1390,14 @@ function gerarCertificado(sigla, posicao) {
 function fecharModal(id){ document.getElementById(id).classList.add('hidden'); }
 
 function abrirModalFaturamento() {
-  if(!REGISTROS.length && !ARQUIVOS.length){ alert('Importe arquivos primeiro.'); return; }
+  const temFatHist = Object.keys(FAT_HISTORICO).length>0;
+  if(!REGISTROS.length && !ARQUIVOS.length && !temFatHist){ alert('Importe arquivos primeiro.'); return; }
   acumularFaturamento();
   const siglas=[...new Set([
     ...REGISTROS.map(r=>r.filial),
     ...ARQUIVOS.filter(a=>a.dados&&a.tipo!=='fat').flatMap(a=>a.dados.map(d=>d.filial).filter(Boolean)),
-    ...Object.keys(FAT_ACUM)
+    ...Object.keys(FAT_ACUM),
+    ...Object.keys(FAT_HISTORICO)
   ])].map(s=>String(s).toUpperCase());
   const unicas=[...new Set(siglas)].sort();
   document.getElementById('fat-rows').innerHTML=unicas.map(s=>{
@@ -1833,6 +1835,11 @@ window.addEventListener('DOMContentLoaded', ()=>{
     return String(mes).padStart(2,'0') + '/' + ano;
   }
 
+  function ymToMesPeriodo(ym) {
+    const p = String(ym).split('-');
+    return p[1].padStart(2,'0') + '/' + p[0];
+  }
+
   let _fatBaseData = null;
 
   function processarFatJSON(input) {
@@ -1842,26 +1849,41 @@ window.addEventListener('DOMContentLoaded', ()=>{
     reader.onload = function(e) {
       try {
         const json = JSON.parse(e.target.result);
-        if (!json.siglas || !json.base || !json.ate) {
-          alert('Arquivo inválido: campos siglas, base ou ate ausentes.'); return;
-        }
-        const siglas = json.siglas, base = json.base, ate = json.ate;
-        // Computar faturamento por filial por mês
-        const fat = {};
-        siglas.forEach(function(s) { fat[s] = {}; });
-        Object.values(base).forEach(function(prodDados) {
-          const porFilial = prodDados[1] || {};
-          Object.keys(porFilial).forEach(function(idxStr) {
-            const idx = parseInt(idxStr);
-            if (idx >= siglas.length) return;
-            const sigla = siglas[idx];
-            const meses = porFilial[idxStr];
-            Object.keys(meses).forEach(function(mesIdx) {
-              const periodo = idxToMesPeriodo(ate, parseInt(mesIdx));
-              fat[sigla][periodo] = (fat[sigla][periodo] || 0) + meses[mesIdx];
+        let siglas, ate, fat;
+        if (json.siglas && json.faturamento) {
+          // FORMATO DIRETO: faturamento[sigla][AAAA-MM] = valor
+          siglas = json.siglas;
+          ate = (json.periodo && json.periodo.fim) || Object.keys(json.totais_mes||{}).sort().pop();
+          fat = {};
+          siglas.forEach(function(s) {
+            fat[s] = {};
+            const dados = json.faturamento[s] || {};
+            Object.keys(dados).forEach(function(ym) {
+              const periodo = ymToMesPeriodo(ym);
+              fat[s][periodo] = (fat[s][periodo] || 0) + dados[ym];
             });
           });
-        });
+        } else if (json.siglas && json.base && json.ate) {
+          // FORMATO ANTIGO: base[produto][1][idxFilial][idxMes] = valor (pivot por CFOP)
+          siglas = json.siglas; ate = json.ate;
+          fat = {};
+          siglas.forEach(function(s) { fat[s] = {}; });
+          Object.values(json.base).forEach(function(prodDados) {
+            const porFilial = prodDados[1] || {};
+            Object.keys(porFilial).forEach(function(idxStr) {
+              const idx = parseInt(idxStr);
+              if (idx >= siglas.length) return;
+              const sigla = siglas[idx];
+              const meses = porFilial[idxStr];
+              Object.keys(meses).forEach(function(mesIdx) {
+                const periodo = idxToMesPeriodo(ate, parseInt(mesIdx));
+                fat[sigla][periodo] = (fat[sigla][periodo] || 0) + meses[mesIdx];
+              });
+            });
+          });
+        } else {
+          alert('Arquivo inválido: esperado "siglas"+"faturamento" (formato direto) ou "siglas"+"base"+"ate" (formato pivot CFOP).'); return;
+        }
         // Períodos ordenados
         const periodos = [];
         Object.values(fat).forEach(function(v) { Object.keys(v).forEach(function(p) { if (periodos.indexOf(p)<0) periodos.push(p); }); });
