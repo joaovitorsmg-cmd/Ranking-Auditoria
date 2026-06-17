@@ -701,9 +701,10 @@ function calcScoreVenc(valorVencidos, faturamento) {
 // Score base + componentes
 function calcScoreBase(r) {
   const sSem  = r.temPed ? ((r.semPend===0)?40:0) : 0;
-  const sPed  = (r.temPed && r.pedConf>0) ? Math.min(r.pctPed/95,1)*30 : 0;
+  // Tudo ou nada: só soma pontuação de Pedido/Canhoto se a filial atingir ≥95% (sem crédito parcial)
+  const sPed  = (r.temPed && r.pedConf>0 && r.pctPed>=95) ? 30 : 0;
   const sVenc = r.temVenc ? (calcScoreVenc(r.valorVencidos, r.faturamento||0)/100)*20 : (r.temPed?20:0);
-  const sCan  = (r.temPed && r.canConf>0) ? Math.min(r.pctCan/95,1)*10 : 0;
+  const sCan  = (r.temPed && r.canConf>0 && r.pctCan>=95) ? 10 : 0;
   return {
     sSem,
     sPed: Math.round(sPed*10)/10,
@@ -1065,9 +1066,9 @@ function metodHTML() {
   return `<div class="metod"><strong>Como o Score Final é calculado (máx 100 + bônus):</strong>
     <div class="metod-items">
       <div class="metod-item"><div class="dot" style="background:var(--red)"></div><span><strong>Semente 40</strong> — zero pendências = 40</span></div>
-      <div class="metod-item"><div class="dot" style="background:var(--brand)"></div><span><strong>Pedido 30</strong> — meta ≥95%</span></div>
+      <div class="metod-item"><div class="dot" style="background:var(--brand)"></div><span><strong>Pedido 30</strong> — só pontua com ≥95% (tudo ou nada)</span></div>
       <div class="metod-item"><div class="dot" style="background:var(--amber)"></div><span><strong>Vencidos 20</strong> — % sobre faturamento</span></div>
-      <div class="metod-item"><div class="dot" style="background:var(--green)"></div><span><strong>Canhoto 10</strong> — meta ≥95%</span></div>
+      <div class="metod-item"><div class="dot" style="background:var(--green)"></div><span><strong>Canhoto 10</strong> — só pontua com ≥95% (tudo ou nada)</span></div>
       <div class="metod-item"><div class="dot" style="background:var(--green-dk)"></div><span><strong>+Bônus volume até ${CONFIG.tetoBonus}</strong> — canhotos+pedidos conferidos</span></div>
     </div>
     ${Object.keys(AUDITORIA_NOTAS).length ? `<div style="margin-top:8px;font-size:11px;color:var(--text3);">🏆 No <strong>Ranking Anual</strong>, filiais com <strong>Nota Média de Auditoria</strong> carregada (planilha anual) usam Semente 20 + Nota Auditoria 20 em vez de Semente 40 — peso igual entre as duas. Filiais sem nota carregada mantêm a fórmula acima.</div>` : ''}
@@ -1208,7 +1209,7 @@ function renderAbaPeriodo() {
           <th style="text-align:center;">🟡Venc</th><th style="text-align:center;">🟢Can</th>
           <th style="text-align:center;">Bônus</th>
           <th style="text-align:right;">%Ped</th><th style="text-align:right;">%Can</th>
-          <th style="text-align:right;">Vlr Venc.</th><th style="text-align:center;">Obs.</th><th style="text-align:center;">Dados</th>
+          <th style="text-align:right;">Vlr Venc.</th><th style="text-align:right;">Vlr Faturamento</th><th style="text-align:right;">%Venc/Fat.</th><th style="text-align:center;">Obs.</th><th style="text-align:center;">Dados</th>
         </tr></thead>
         <tbody id="body-per"></tbody>
       </table></div>
@@ -1262,10 +1263,12 @@ function renderTabelaPeriodo() {
       <td style="text-align:right;${r.pctPed>=95?'color:var(--green-dk)':r.pctPed?'color:var(--amber-dk)':'color:var(--text3)'}">${r.temPed?r.pctPed.toFixed(1)+'%':'—'}</td>
       <td style="text-align:right;${r.pctCan>=95?'color:var(--green-dk)':r.pctCan?'color:var(--amber-dk)':'color:var(--text3)'}">${r.temPed?r.pctCan.toFixed(1)+'%':'—'}</td>
       <td style="text-align:right;${r.valorVencidos>0?'color:var(--red-dk)':'color:var(--text3)'}">${r.temVenc?fmt(r.valorVencidos):'—'}</td>
+      <td style="text-align:right;color:var(--text2);">${r.faturamento>0?fmt(r.faturamento):'—'}</td>
+      <td style="text-align:right;${r.pctVencFat!=null?(r.pctVencFat<=2?'color:var(--green-dk)':r.pctVencFat<=5?'color:var(--amber-dk)':'color:var(--red-dk)'):'color:var(--text3)'}">${r.pctVencFat!=null?r.pctVencFat.toFixed(2)+'%':'—'}</td>
       <td><input class="obs-input" value="${(r.obs||'').replace(/"/g,'&quot;')}" placeholder="—" onchange="salvarObs('${chaveObs}',this.value)"></td>
       <td style="text-align:center;">${dados}</td>
     </tr>`;
-  }).join('') || `<tr><td colspan="14" style="text-align:center;padding:40px;color:var(--text3)">Nenhum registro.</td></tr>`;
+  }).join('') || `<tr><td colspan="16" style="text-align:center;padding:40px;color:var(--text3)">Nenhum registro.</td></tr>`;
 }
 
 function salvarObs(chave, val){ OBSERVACOES[chave]=val; const r=REGISTROS.find(x=>(x.filial+'|'+x.periodo).toUpperCase()===chave); if(r)r.obs=val; }
@@ -1777,7 +1780,8 @@ function renderAbaConfig(){
           Gerada pelo relatório em: <strong>${geradoEmDisplay(FAT_BASE_INFO.geradoEm)||'—'}</strong><br>
           Cobertura: <strong>${FAT_BASE_INFO.periodoIniDisplay}</strong> até <strong>${FAT_BASE_INFO.periodoFimDisplay}</strong><br>
           ${FAT_BASE_INFO.qtdFiliais} filiais · ${FAT_BASE_INFO.qtdPeriodos} valores mensais aplicados<br>
-          <span style="font-size:11px;color:var(--text3);">Meses sem dado (zerados/não computados) são ignorados e não sobrescrevem valores já existentes.</span>
+          <span style="font-size:11px;color:var(--text3);">Meses sem dado (zerados/não computados) são ignorados e não sobrescrevem valores já existentes.</span><br>
+          <button class="btn-topo danger" style="margin-top:8px;" onclick="removerFatBase()">✕ Remover Base de Faturamento</button>
         </div>` : `<span style="color:var(--text3);">⚠ Nenhuma base de faturamento carregada ainda. Use o botão <strong>📊 Base Fat. (JSON)</strong> no topo.</span>`}
     </div>
 
@@ -2097,6 +2101,15 @@ window.addEventListener('DOMContentLoaded', ()=>{
       };
       reader.readAsArrayBuffer(file);
     }
+  }
+
+  function removerFatBase() {
+    if (!confirm('Remover toda a Base de Faturamento (histórico mensal por filial)? O componente Vencidos passará a usar 0% onde não houver faturamento manual cadastrado.')) return;
+    FAT_HISTORICO = {};
+    FAT_BASE_INFO = null;
+    processarERenderizar();
+    if (ABA_ATUAL==='config') renderAbaConfig();
+    if (getBinId() && getMasterKey()) syncPush();
   }
 
   function removerNotaAuditoria() {
