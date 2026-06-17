@@ -1546,8 +1546,8 @@ function cancelPwd() {
 // ============================================================
 const JBIN_CFG_KEY = 'agroquima_ranking_jbin_cfg';
 let jbinSyncing = false;
-const HARDCODED_BIN_ID = '';      // em branco — operador cria pela aba de config
-const HARDCODED_READ_KEY = '';
+const HARDCODED_BIN_ID = '6a3292bfda38895dfed005ec';
+const HARDCODED_READ_KEY = '$2a$10$NhmXfS0QZiXUxosdImwfGuw6SSpu/ofmat/2kSNj9YKW8I4beCIpq';
 
 function getJBinCfg(){ try{return JSON.parse(localStorage.getItem(JBIN_CFG_KEY)||'{}');}catch(e){return {};} }
 function saveJBinCfg(cfg){ localStorage.setItem(JBIN_CFG_KEY, JSON.stringify({...getJBinCfg(),...cfg})); }
