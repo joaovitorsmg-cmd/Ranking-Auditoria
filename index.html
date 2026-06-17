@@ -241,6 +241,8 @@ canvas{max-width:100%;}
     <button class="btn-topo" onclick="abrirModalFaturamento()" title="Ajuste manual de faturamento">💰 Faturamentos</button>
     <button class="btn-topo" onclick="document.getElementById('inp-fat-json').click()" title="Importar base de faturamento JSON">📊 Base Fat. (JSON)</button>
     <input type="file" id="inp-fat-json" accept=".json" style="display:none;" onchange="processarFatJSON(this)">
+    <button class="btn-topo" onclick="document.getElementById('inp-nota-auditoria').click()" title="Importar planilha de Nota Média de Auditoria (peso igual à Semente no Ranking Anual)">🏆 Nota Auditoria</button>
+    <input type="file" id="inp-nota-auditoria" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarNotaAuditoriaArquivo(this)">
     <button class="btn-topo" onclick="syncPush()" title="Publicar dados na nuvem (JSONBin)">☁ Publicar</button>
     <button class="btn-topo" onclick="abrirAbaConfig()" title="Configurar nuvem JSONBin e parâmetros">⚙ Configurações</button>
     <button class="btn-topo primary" onclick="exportarRankingXLS()">📥 Exportar (.xlsx)</button>
@@ -363,7 +365,9 @@ const BASE_FILIAIS = {"MTZ": {"filial": 1, "loja": "MATRIZ", "estado": "GO", "ge
 let ARQUIVOS = [];        // arquivos importados
 let FATURAMENTOS = {};    // { sigla: valor }  (resultado final usado no score)
 let FAT_HISTORICO = {};  // { sigla: { 'MM/YYYY': valor } } — histórico por período
-let FAT_BASE_INFO = null; // { arquivo, geradoEm, periodoIniDisplay, periodoFimDisplay, qtdFiliais, qtdPeriodos, importadoEm }
+let FAT_BASE_INFO = null;
+let AUDITORIA_NOTAS = {}; // sigla(uppercase) -> { media, qtd }
+let AUDITORIA_NOTAS_INFO = null; // { arquivo, geradoEm, periodoIniDisplay, periodoFimDisplay, qtdFiliais, qtdPeriodos, importadoEm }
 let FAT_ACUM = {};        // { sigla: {valor, chaves:Set, periodoInicio, periodoFim, importadoEm, linhas} }
 let OBSERVACOES = {};     // { chave: texto }
 let REGISTROS = [];       // todos os registros período a período (mesclados)
@@ -874,11 +878,30 @@ function consolidarAnual(registros) {
     const vencidosCount = regs.filter(r=>r.temVenc&&r.totalVencidos>0).length;
     const pctVencMed = regs.filter(r=>r.pctVencFat!=null).reduce((a,r,_,arr)=>a+r.pctVencFat/arr.length,0);
     const volTotal = regs.reduce((a,r)=>a+r.canConf+r.pedConf,0);
+
+    // Nota Média de Auditoria (planilha anual, peso igual à Semente) — só recompõe
+    // o score anual da filial quando há nota carregada para ela; sem nota, mantém a fórmula original.
+    const nota = AUDITORIA_NOTAS[filial.toUpperCase()];
+    let mediaFinal = media, notaAuditoria = null, notaAuditoriaQtd = 0;
+    if (nota) {
+      notaAuditoria = nota.media;
+      notaAuditoriaQtd = nota.qtd;
+      const n = regs.length;
+      const avgSem = regs.reduce((a,r)=>a+r.sSem,0)/n;
+      const avgPed = regs.reduce((a,r)=>a+r.sPed,0)/n;
+      const avgVenc = regs.reduce((a,r)=>a+r.sVenc,0)/n;
+      const avgCan = regs.reduce((a,r)=>a+r.sCan,0)/n;
+      const avgBonus = regs.reduce((a,r)=>a+r.bonus,0)/n;
+      // Semente 40→20 + Nota Auditoria 20 (peso igual), Pedido/Vencidos/Canhoto inalterados
+      mediaFinal = (avgSem/2) + avgPed + avgVenc + avgCan + (notaAuditoria/100*20) + avgBonus;
+    }
+
     return {
       filial, filialNome:info.filialNome, supervisor:info.supervisor, gerente:info.gerente,
       regional:info.regional, auditor:info.auditor, coordenador:info.coordenador, estado:info.estado, regiao:info.regiao,
       auditorias: regs.length,
-      mediaScore: Math.round(media*10)/10,
+      notaAuditoria, notaAuditoriaQtd,
+      mediaScore: Math.round(mediaFinal*10)/10,
       maxScore: Math.round(Math.max(...scores)*10)/10,
       minScore: Math.round(Math.min(...scores)*10)/10,
       desvio: Math.round(desvio*10)/10,
@@ -1024,7 +1047,7 @@ function renderTabelaAnual() {
     const pos=i+1, posCls=pos===1?'ouro':pos===2?'prata':pos===3?'bronze':'normal';
     return `<tr class="${pos<=3?'pos'+pos:''}">
       <td style="text-align:center;"><div class="pos-badge ${posCls}">${pos}</div></td>
-      <td><b>${r.filial}</b> ${r.reincidente?'<span class="selo selo-reinc">REINC</span>':''}${r.velho?'<span class="selo selo-velho">12M+</span>':''}<br><span style="font-size:11px;color:var(--text3)">${r.filialNome}</span></td>
+      <td><b>${r.filial}</b> ${r.reincidente?'<span class="selo selo-reinc">REINC</span>':''}${r.velho?'<span class="selo selo-velho">12M+</span>':''}${r.notaAuditoria!=null?`<span class="selo" style="background:var(--ouro,#caa43d);color:#fff;" title="Nota Média de Auditoria: ${r.notaAuditoria} (${r.notaAuditoriaQtd} auditorias finalizadas)">🏆 ${r.notaAuditoria}</span>`:''}<br><span style="font-size:11px;color:var(--text3)">${r.filialNome}</span></td>
       <td style="font-size:12px;color:var(--text2);font-weight:600;">${r.supervisor||'—'}</td>
       <td style="font-size:12px;color:var(--text2)">${r.regional}</td>
       <td style="font-size:12px;color:var(--text2)">${r.auditor}</td>
@@ -1046,7 +1069,9 @@ function metodHTML() {
       <div class="metod-item"><div class="dot" style="background:var(--amber)"></div><span><strong>Vencidos 20</strong> — % sobre faturamento</span></div>
       <div class="metod-item"><div class="dot" style="background:var(--green)"></div><span><strong>Canhoto 10</strong> — meta ≥95%</span></div>
       <div class="metod-item"><div class="dot" style="background:var(--green-dk)"></div><span><strong>+Bônus volume até ${CONFIG.tetoBonus}</strong> — canhotos+pedidos conferidos</span></div>
-    </div></div>`;
+    </div>
+    ${Object.keys(AUDITORIA_NOTAS).length ? `<div style="margin-top:8px;font-size:11px;color:var(--text3);">🏆 No <strong>Ranking Anual</strong>, filiais com <strong>Nota Média de Auditoria</strong> carregada (planilha anual) usam Semente 20 + Nota Auditoria 20 em vez de Semente 40 — peso igual entre as duas. Filiais sem nota carregada mantêm a fórmula acima.</div>` : ''}
+    </div>`;
 }
 
 
@@ -1499,7 +1524,7 @@ function exportarRankingXLS() {
 function salvarRankingJSON() {
   if(!REGISTROS.length && !Object.keys(FAT_HISTORICO).length){ alert('Sem dados.'); return; }
   const dt=new Date().toLocaleDateString('pt-BR').split('/').join('-');
-  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,fatHistorico:FAT_HISTORICO,fatBaseInfo:FAT_BASE_INFO,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS};
+  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,fatHistorico:FAT_HISTORICO,fatBaseInfo:FAT_BASE_INFO,auditoriaNotas:AUDITORIA_NOTAS,auditoriaNotasInfo:AUDITORIA_NOTAS_INFO,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=`Ranking_Backup_${dt}.json`;a.click();
@@ -1515,6 +1540,8 @@ function lerBackupJSON(input) {
       if(d.faturamentos) FATURAMENTOS=d.faturamentos;
       if(d.fatHistorico) FAT_HISTORICO=d.fatHistorico;
       if(d.fatBaseInfo) FAT_BASE_INFO=d.fatBaseInfo;
+      if(d.auditoriaNotas) AUDITORIA_NOTAS=d.auditoriaNotas;
+      if(d.auditoriaNotasInfo) AUDITORIA_NOTAS_INFO=d.auditoriaNotasInfo;
       if(d.observacoes) OBSERVACOES=d.observacoes;
       if(d.config) CONFIG=Object.assign(CONFIG,d.config);
       if(d.arquivos) ARQUIVOS=d.arquivos;
@@ -1530,7 +1557,7 @@ function lerBackupJSON(input) {
 
 function limparTudo() {
   if(!confirm('Limpar todos os dados? Esta ação não pode ser desfeita.')) return;
-  ARQUIVOS=[];FATURAMENTOS={};FAT_HISTORICO={};FAT_BASE_INFO=null;OBSERVACOES={};REGISTROS=[];FAT_ACUM={};
+  ARQUIVOS=[];FATURAMENTOS={};FAT_HISTORICO={};FAT_BASE_INFO=null;AUDITORIA_NOTAS={};AUDITORIA_NOTAS_INFO=null;OBSERVACOES={};REGISTROS=[];FAT_ACUM={};
   document.getElementById('tela-import').style.display='block';
   document.getElementById('painel').classList.add('hidden');
   document.getElementById('arqs-wrap').innerHTML='';
@@ -1625,6 +1652,8 @@ async function syncPull(){
       if(remote.faturamentos) FATURAMENTOS=remote.faturamentos;
       if(remote.fatHistorico) FAT_HISTORICO=remote.fatHistorico;
       if(remote.fatBaseInfo) FAT_BASE_INFO=remote.fatBaseInfo;
+      if(remote.auditoriaNotas) AUDITORIA_NOTAS=remote.auditoriaNotas;
+      if(remote.auditoriaNotasInfo) AUDITORIA_NOTAS_INFO=remote.auditoriaNotasInfo;
       if(remote.observacoes) OBSERVACOES=remote.observacoes;
       if(remote.config) CONFIG=Object.assign(CONFIG, remote.config);
       if(remote.arquivos && remote.arquivos.length){
@@ -1659,7 +1688,8 @@ async function syncPush(){
   setSyncStatus('syncing','Publicando...');
   try{
     const payload={
-      registros:REGISTROS, faturamentos:FATURAMENTOS, fatHistorico:FAT_HISTORICO, fatBaseInfo:FAT_BASE_INFO, observacoes:OBSERVACOES,
+      registros:REGISTROS, faturamentos:FATURAMENTOS, fatHistorico:FAT_HISTORICO, fatBaseInfo:FAT_BASE_INFO,
+      auditoriaNotas:AUDITORIA_NOTAS, auditoriaNotasInfo:AUDITORIA_NOTAS_INFO, observacoes:OBSERVACOES,
       config:CONFIG, arquivos:ARQUIVOS,
       lastUpdate:new Date().toISOString(), app:'agroquima-ranking'
     };
@@ -1749,6 +1779,18 @@ function renderAbaConfig(){
           ${FAT_BASE_INFO.qtdFiliais} filiais · ${FAT_BASE_INFO.qtdPeriodos} valores mensais aplicados<br>
           <span style="font-size:11px;color:var(--text3);">Meses sem dado (zerados/não computados) são ignorados e não sobrescrevem valores já existentes.</span>
         </div>` : `<span style="color:var(--text3);">⚠ Nenhuma base de faturamento carregada ainda. Use o botão <strong>📊 Base Fat. (JSON)</strong> no topo.</span>`}
+    </div>
+
+    <div class="chart-card" style="max-width:1000px;margin-top:20px;">
+      <div class="chart-title">🏆 Nota Média de Auditoria (Ranking Anual)</div>
+      ${AUDITORIA_NOTAS_INFO ? `
+        <div style="font-size:13px;line-height:1.8;">
+          <span style="color:var(--green-dk);font-weight:700;">✔ Carregada</span> em <strong>${AUDITORIA_NOTAS_INFO.importadoEm}</strong><br>
+          Arquivo: <code style="font-size:11px;background:var(--bg3);padding:1px 5px;border-radius:3px;">${AUDITORIA_NOTAS_INFO.arquivo}</code><br>
+          ${AUDITORIA_NOTAS_INFO.qtdFiliais} filiais com auditoria finalizada · ${AUDITORIA_NOTAS_INFO.qtdFinalizadas} de ${AUDITORIA_NOTAS_INFO.qtdTotal} linhas consideradas (apenas Status = Finalizada)<br>
+          <span style="font-size:11px;color:var(--text3);">Para as filiais com nota carregada, o Score Final Anual passa a usar Semente 20 + Nota Auditoria 20 (peso igual) + Pedido 30 + Vencidos 20 + Canhoto 10. Filiais sem nota mantêm a fórmula original (Semente 40).</span><br>
+          <button class="btn-topo danger" style="margin-top:8px;" onclick="removerNotaAuditoria()">✕ Remover Nota de Auditoria</button>
+        </div>` : `<span style="color:var(--text3);">⚠ Nenhuma planilha de Nota de Auditoria carregada ainda. Use o botão <strong>🏆 Nota Auditoria</strong> no topo. Pode ser incluída ou removida a qualquer momento — sincroniza com a nuvem automaticamente.</span>`}
     </div>`;
 }
 
@@ -1978,6 +2020,92 @@ window.addEventListener('DOMContentLoaded', ()=>{
     if (ABA_ATUAL==='config') renderAbaConfig();
     const total = Object.values(FAT_HISTORICO).reduce(function(s,v){ return s+Object.keys(v).length; }, 0);
     alert('Base importada! ' + total + ' registros de faturamento no histórico.');
+  }
+
+  function processarNotaAuditoriaArquivo(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const nome = file.name;
+    const aplicar = function(matrix) {
+      if (!matrix || !matrix.length) { alert('Planilha vazia ou inválida.'); return; }
+      const header = matrix[0].map(function(h) { return String(h||'').trim().toLowerCase(); });
+      const idxFilial = header.findIndex(function(h) { return h.indexOf('filial') > -1; });
+      const idxStatus = header.findIndex(function(h) { return h.indexOf('status') > -1; });
+      const idxPontos = header.findIndex(function(h) { return h.indexOf('ponto') > -1; });
+      if (idxFilial<0 || idxStatus<0 || idxPontos<0) {
+        alert('Estrutura não reconhecida. Esperado colunas: Filial, Status, Pontos.'); return;
+      }
+      const porFilial = {};
+      let qtdFinalizadas = 0, qtdTotal = 0;
+      for (let i=1; i<matrix.length; i++) {
+        const row = matrix[i];
+        if (!row || !row[idxFilial]) continue;
+        qtdTotal++;
+        const status = String(row[idxStatus]||'').trim().toLowerCase();
+        if (status !== 'finalizada') continue;
+        const pontos = parseFloat(String(row[idxPontos]).replace(',', '.'));
+        if (isNaN(pontos)) continue;
+        const filialRaw = String(row[idxFilial]).trim();
+        const m = filialRaw.match(/-\s*(.+)$/);
+        const sigla = (m ? m[1] : filialRaw).trim().toUpperCase();
+        if (!porFilial[sigla]) porFilial[sigla] = [];
+        porFilial[sigla].push(pontos);
+        qtdFinalizadas++;
+      }
+      if (!Object.keys(porFilial).length) { alert('Nenhuma auditoria "Finalizada" encontrada na planilha.'); return; }
+      AUDITORIA_NOTAS = {};
+      Object.keys(porFilial).forEach(function(sigla) {
+        const vals = porFilial[sigla];
+        AUDITORIA_NOTAS[sigla] = {
+          media: Math.round((vals.reduce(function(a,b){return a+b;},0)/vals.length)*10)/10,
+          qtd: vals.length,
+        };
+      });
+      AUDITORIA_NOTAS_INFO = {
+        arquivo: nome,
+        qtdFiliais: Object.keys(AUDITORIA_NOTAS).length,
+        qtdFinalizadas, qtdTotal,
+        importadoEm: new Date().toLocaleString('pt-BR'),
+      };
+      input.value = '';
+      processarERenderizar();
+      if (ABA_ATUAL==='config') renderAbaConfig();
+      if (getBinId() && getMasterKey()) syncPush();
+      alert('Nota Média de Auditoria carregada! ' + AUDITORIA_NOTAS_INFO.qtdFiliais + ' filiais, ' + qtdFinalizadas + ' auditorias finalizadas consideradas.');
+    };
+    const lower = nome.toLowerCase();
+    if (lower.endsWith('.json')) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const j = JSON.parse(e.target.result);
+          const rows = Array.isArray(j) ? j : (j.dados||j.linhas||[]);
+          const matrix = [['Filial','Status','Pontos']].concat(rows.map(function(r) { return [r.filial||r.Filial, r.status||r.Status, r.pontos||r.Pontos]; }));
+          aplicar(matrix);
+        } catch(err) { alert('JSON inválido: ' + err.message); }
+      };
+      reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:false});
+          const ws0 = wb.Sheets[wb.SheetNames[0]];
+          const matrix = XLSX.utils.sheet_to_json(ws0, {header:1, defval:'', raw:true});
+          aplicar(matrix);
+        } catch(err) { alert('Erro ao ler planilha: ' + err.message); }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  }
+
+  function removerNotaAuditoria() {
+    if (!confirm('Remover a Nota Média de Auditoria carregada? O score anual volta a usar apenas Semente/Pedido/Vencidos/Canhoto.')) return;
+    AUDITORIA_NOTAS = {};
+    AUDITORIA_NOTAS_INFO = null;
+    processarERenderizar();
+    if (ABA_ATUAL==='config') renderAbaConfig();
+    if (getBinId() && getMasterKey()) syncPush();
   }
 </script>
 </body>
