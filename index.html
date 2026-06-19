@@ -314,6 +314,19 @@ canvas{max-width:100%;}
   </div>
 </div>
 
+<!-- MODAL VISUALIZAR BASE FATURAMENTO ATUAL -->
+<div class="modal-overlay hidden" id="modal-fat-view">
+  <div class="modal-box" style="max-width:1100px;">
+    <div class="modal-title">💰 Base de Faturamento Carregada — Filial × Período</div>
+    <div class="modal-sub">Use esta tela para confrontar os valores aplicados no painel com o sistema de origem. <input id="fat-view-filtro" type="text" placeholder="Filtrar filial..." oninput="renderFatViewTabela()" style="margin-left:10px;padding:5px 9px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;"></div>
+    <div id="fat-view-tabela" style="max-height:480px;overflow:auto;margin-top:12px;font-size:12px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn-modal sec" onclick="exportarFatHistoricoXLS()">📥 Exportar (.xlsx)</button>
+      <button class="btn-modal primary" onclick="fecharModal('modal-fat-view')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CONFIG -->
 <div class="modal-overlay hidden" id="modal-config">
   <div class="modal-box">
@@ -1929,8 +1942,13 @@ function renderAbaConfig(){
           Cobertura: <strong>${FAT_BASE_INFO.periodoIniDisplay}</strong> até <strong>${FAT_BASE_INFO.periodoFimDisplay}</strong><br>
           ${FAT_BASE_INFO.qtdFiliais} filiais · ${FAT_BASE_INFO.qtdPeriodos} valores mensais aplicados<br>
           <span style="font-size:11px;color:var(--text3);">Meses sem dado (zerados/não computados) são ignorados e não sobrescrevem valores já existentes.</span><br>
+          <button class="btn-topo" style="margin-top:8px;" onclick="abrirFatHistoricoView()">👁 Ver Tabela Completa (Filial × Período)</button>
           <button class="btn-topo danger" style="margin-top:8px;" onclick="removerFatBase()">✕ Remover Base de Faturamento</button>
-        </div>` : `<span style="color:var(--text3);">⚠ Nenhuma base de faturamento carregada ainda. Use o botão <strong>📊 Base Fat. (JSON)</strong> no topo.</span>`}
+        </div>` : (Object.keys(FAT_HISTORICO).length ? `
+        <div style="font-size:13px;line-height:1.8;">
+          <span style="color:var(--amber-dk);font-weight:700;">⚠ Sem metadados de importação</span>, mas há histórico aplicado.<br>
+          <button class="btn-topo" style="margin-top:8px;" onclick="abrirFatHistoricoView()">👁 Ver Tabela Completa (Filial × Período)</button>
+        </div>` : `<span style="color:var(--text3);">⚠ Nenhuma base de faturamento carregada ainda. Use o botão <strong>📊 Base Fat.</strong> no topo.</span>`)}
     </div>
 
     <div class="chart-card" style="max-width:1000px;margin-top:20px;">
@@ -2258,6 +2276,60 @@ window.addEventListener('DOMContentLoaded', ()=>{
     processarERenderizar();
     if (ABA_ATUAL==='config') renderAbaConfig();
     if (getBinId() && getMasterKey()) syncPush();
+  }
+
+  function abrirFatHistoricoView() {
+    document.getElementById('fat-view-filtro').value = '';
+    renderFatViewTabela();
+    document.getElementById('modal-fat-view').classList.remove('hidden');
+  }
+
+  function _fatViewPeriodosOrdenados() {
+    const periodos = new Set();
+    Object.values(FAT_HISTORICO).forEach(function(porPeriodo) { Object.keys(porPeriodo).forEach(function(p) { periodos.add(p); }); });
+    return Array.from(periodos).sort(function(a,b) {
+      const [ma,ya] = a.split('/').map(Number), [mb,yb] = b.split('/').map(Number);
+      return (ya*12+ma) - (yb*12+mb);
+    });
+  }
+
+  function renderFatViewTabela() {
+    const filtro = (document.getElementById('fat-view-filtro').value||'').trim().toUpperCase();
+    const periodos = _fatViewPeriodosOrdenados();
+    const filiais = Object.keys(FAT_HISTORICO).filter(function(s) { return !filtro || s.indexOf(filtro)>-1; }).sort();
+    const cont = document.getElementById('fat-view-tabela');
+    if (!periodos.length || !filiais.length) {
+      cont.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center;">Nenhum dado de faturamento encontrado.</div>';
+      return;
+    }
+    let html = '<table style="width:100%;border-collapse:collapse;"><thead><tr style="position:sticky;top:0;background:var(--bg2);">'
+      + '<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border);">Filial</th>'
+      + periodos.map(function(p) { return '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border);">'+p+'</th>'; }).join('')
+      + '</tr></thead><tbody>';
+    filiais.forEach(function(sigla) {
+      html += '<tr><td style="padding:7px 8px;border-bottom:1px solid var(--border);font-weight:700;">'+sigla+'</td>'
+        + periodos.map(function(p) {
+            const v = (FAT_HISTORICO[sigla]||{})[p];
+            return '<td style="text-align:right;padding:7px 8px;border-bottom:1px solid var(--border);color:'+(v>0?'var(--text2)':'var(--text3)')+';">'+(v>0?fmt(v):'—')+'</td>';
+          }).join('')
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    cont.innerHTML = html;
+  }
+
+  function exportarFatHistoricoXLS() {
+    const periodos = _fatViewPeriodosOrdenados();
+    if (!periodos.length) { alert('Sem dados de faturamento para exportar.'); return; }
+    const filiais = Object.keys(FAT_HISTORICO).sort();
+    const aoa = [['Filial'].concat(periodos)];
+    filiais.forEach(function(sigla) {
+      aoa.push([sigla].concat(periodos.map(function(p) { return (FAT_HISTORICO[sigla]||{})[p] || 0; })));
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Faturamento');
+    XLSX.writeFile(wb, 'Base_Faturamento_Filial_Periodo.xlsx');
   }
 
   function removerNotaAuditoria() {
