@@ -729,6 +729,20 @@ function onDrop(e){
   processarArquivosImportados(inp);
 }
 
+function onDragOverCrono(e){e.preventDefault();document.getElementById('crono-drop-zone').classList.add('over');}
+function onDragLeaveCrono(e){document.getElementById('crono-drop-zone').classList.remove('over');}
+function onDropCrono(e){
+  e.preventDefault();
+  document.getElementById('crono-drop-zone').classList.remove('over');
+  const files = Array.from(e.dataTransfer.files);
+  if(!files.length) return;
+  const inp = document.getElementById('inp-cronograma');
+  const dt = new DataTransfer();
+  files.forEach(f=>dt.items.add(f));
+  inp.files = dt.files;
+  processarCronogramaArquivo(inp);
+}
+
 // ============================================================
 // SCORE
 // ============================================================
@@ -1675,8 +1689,11 @@ function renderAbaCronograma() {
         <span style="color:var(--amber-dk);">Cada novo arquivo substitui a base completa do Cronograma — sempre suba a planilha atualizada e completa, não apenas as novidades.</span>
       </p>
       <input type="file" id="inp-cronograma" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarCronogramaArquivo(this)">
+      <div class="drop-zone" id="crono-drop-zone" style="padding:22px 18px;margin:0 0 12px;max-width:none;" ondrop="onDropCrono(event)" ondragover="onDragOverCrono(event)" ondragleave="onDragLeaveCrono(event)" onclick="triggerCronogramaImport()">
+        <div class="dz-icon" style="font-size:28px;margin-bottom:6px;">📂</div>
+        <p style="margin:0;">Arraste a planilha aqui ou <strong>clique para selecionar</strong></p>
+      </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <button class="btn-az" style="margin:0;font-size:12.5px;padding:9px 16px;" onclick="triggerCronogramaImport()">📂 Selecionar Planilha</button>
         ${CRONO_ARQUIVO_INFO ? `<button class="btn-topo danger" onclick="limparCronograma()">🗑 Limpar Dados</button>` : ''}
         ${anos.length>1 ? `<select class="sel-sm" onchange="CRONO_ANO_SEL=parseInt(this.value);renderAbaCronograma();">${anos.map(a=>`<option value="${a}" ${a===anoSel?'selected':''}>Ano ${a}</option>`).join('')}</select>` : ''}
         <span style="font-size:12px;color:var(--text2);margin-left:auto;">Meta auditorias/ano por filial:</span>
