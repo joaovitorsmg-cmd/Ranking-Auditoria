@@ -1473,10 +1473,12 @@ function processarCronogramaArquivo(input) {
   const aplicar=function(matrix) {
     if (!matrix||!matrix.length) { alert('Planilha vazia ou inválida.'); return; }
     const idxFilial=_colIdx(matrix[0], 'filial','loja','unidade');
-    const idxData=_colIdx(matrix[0], 'data');
+    const idxData=_colIdx(matrix[0], 'data','dt inicio','dt início','dt. inicio','dtinicio');
     const idxNota=_colIdx(matrix[0], 'nota','pont','score');
+    const idxStatus=_colIdx(matrix[0], 'status');
+    const idxNumero=_colIdx(matrix[0], 'nº auditoria','n° auditoria','numero','número','auditoria');
     if (idxFilial<0 || idxData<0) {
-      alert('Estrutura não reconhecida. Esperado colunas: Filial, Data da Auditoria e Nota.'); return;
+      alert('Estrutura não reconhecida. Esperado colunas: Filial, Data/Dt Início, Nota (Status é opcional).'); return;
     }
     const novos=[]; let ignoradas=0;
     for (let i=1; i<matrix.length; i++) {
@@ -1485,22 +1487,26 @@ function processarCronogramaArquivo(input) {
       const dt=_cronoParseData(row[idxData]);
       if (!sigla || !dt || isNaN(dt.getTime())) { ignoradas++; continue; }
       const notaRaw=idxNota>-1 ? parseFloat(String(row[idxNota]).replace(',','.')) : NaN;
+      const statusRaw=idxStatus>-1 ? String(row[idxStatus]||'').trim() : 'Finalizada';
       novos.push({
         filial:sigla,
         data: dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'),
         dataDisplay: String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear(),
         ano: dt.getFullYear(),
         nota: isNaN(notaRaw) ? null : Math.round(notaRaw*10)/10,
+        status: statusRaw || 'Finalizada',
+        numero: idxNumero>-1 ? String(row[idxNumero]||'').trim() : null,
       });
     }
-    if (!novos.length) { alert('Nenhuma linha válida encontrada (verifique as colunas Filial e Data).'); return; }
+    if (!novos.length) { alert('Nenhuma linha válida encontrada (verifique as colunas Filial e Data/Dt Início).'); return; }
     CRONO_AUDITORIAS=novos;
-    CRONO_ARQUIVO_INFO={ nome, qtdReconhecidas:novos.length, qtdIgnoradas:ignoradas, importadoEm:new Date().toLocaleString('pt-BR') };
+    const qtdAndamento=novos.filter(r=>!_cronoEhFinalizada(r)).length;
+    CRONO_ARQUIVO_INFO={ nome, qtdReconhecidas:novos.length, qtdIgnoradas:ignoradas, qtdAndamento, importadoEm:new Date().toLocaleString('pt-BR') };
     CRONO_ANO_SEL=null;
     input.value='';
     if (ABA_ATUAL==='cronograma') renderAbaCronograma();
     if (getBinId() && getMasterKey()) syncPush();
-    alert('Planilha de Cronograma carregada! '+novos.length+' auditoria(s) reconhecida(s)'+(ignoradas?(' · '+ignoradas+' linha(s) ignorada(s)'):'')+'.');
+    alert('Planilha de Cronograma carregada! '+novos.length+' auditoria(s) reconhecida(s)'+(qtdAndamento?(' · '+qtdAndamento+' em andamento (não finalizada)'):'')+(ignoradas?(' · '+ignoradas+' linha(s) ignorada(s)'):'')+'.');
   };
   const lower=nome.toLowerCase();
   if (lower.endsWith('.json')) {
@@ -1509,7 +1515,7 @@ function processarCronogramaArquivo(input) {
       try {
         const j=JSON.parse(e.target.result);
         const rows=Array.isArray(j) ? j : (j.dados||j.linhas||[]);
-        const matrix=[['Filial','Data','Nota']].concat(rows.map(x=>[x.filial||x.Filial||x.loja||x.Loja, x.data||x.Data||x.dataAuditoria||x.dataAuditada, x.nota||x.Nota||x.pontos||x.Pontos]));
+        const matrix=[['Filial','Data','Nota','Status','Nº Auditoria']].concat(rows.map(x=>[x.filial||x.Filial||x.loja||x.Loja, x.data||x.Data||x.dataAuditoria||x.dataAuditada, x.nota||x.Nota||x.pontos||x.Pontos, x.status||x.Status, x.numero||x.Numero||x.numeroAuditoria]));
         aplicar(matrix);
       } catch(err) { alert('JSON inválido: '+err.message); }
     };
@@ -1563,10 +1569,23 @@ function _cronoFracaoAno(ano) {
   return Math.min(1, diaDoAno/_cronoDiasNoAno(ano));
 }
 
+// Mesma convenção do Ranking (Nota de Auditoria): só "Finalizada" conta; "Em andamento" fica como alerta.
+function _cronoEhFinalizada(r) {
+  return !r.status || r.status.trim().toLowerCase()==='finalizada';
+}
+
+function _cronoEmAndamento() {
+  return CRONO_AUDITORIAS.filter(r=>!_cronoEhFinalizada(r)).map(r=>{
+    const info=BASE_FILIAIS[r.filial]||{};
+    const dias=Math.floor((new Date()-new Date(r.data+'T00:00:00'))/86400000);
+    return Object.assign({}, r, { filialNome:info.loja||r.filial, auditor:info.auditor||'—', dias });
+  }).sort((a,b)=>b.dias-a.dias);
+}
+
 function consolidarCronograma(ano) {
   const porFilial=Object.keys(BASE_FILIAIS).map(sigla=>{
     const info=BASE_FILIAIS[sigla];
-    const regs=CRONO_AUDITORIAS.filter(r=>r.filial===sigla && r.ano===ano).sort((a,b)=>a.data.localeCompare(b.data));
+    const regs=CRONO_AUDITORIAS.filter(r=>r.filial===sigla && r.ano===ano && _cronoEhFinalizada(r)).sort((a,b)=>a.data.localeCompare(b.data));
     const qtd=regs.length;
     const notas=regs.filter(r=>r.nota!=null).map(r=>r.nota);
     return {
@@ -1603,7 +1622,7 @@ function consolidarCronograma(ano) {
 
 function _cronoCumulativoPorMes(ano) {
   const porMes=new Array(12).fill(0);
-  CRONO_AUDITORIAS.filter(r=>r.ano===ano).forEach(r=>{ porMes[+r.data.slice(5,7)-1]++; });
+  CRONO_AUDITORIAS.filter(r=>r.ano===ano && _cronoEhFinalizada(r)).forEach(r=>{ porMes[+r.data.slice(5,7)-1]++; });
   const cum=[]; let acc=0;
   for (let i=0;i<12;i++) { acc+=porMes[i]; cum.push(acc); }
   return cum;
@@ -1624,14 +1643,35 @@ function renderAbaCronograma() {
   const realizadasGeral=dados.porFilial.reduce((s,f)=>s+Math.min(f.qtd,CRONO_META),0);
   const totalAuditoriasAno=dados.porFilial.reduce((s,f)=>s+f.qtd,0);
   const progressoGeral=Math.round(realizadasGeral/Math.max(metaGeral,1)*100);
+  const emAndamento=_cronoEmAndamento();
 
   c.innerHTML = `
-    <div class="info-bar">🗓 <strong>Cronograma & Progresso das Auditorias</strong> — acompanhamento <em>independente do Ranking</em>, baseado somente na planilha importada abaixo (Filial, Data da Auditoria e Nota). Meta: <strong>${CRONO_META} auditorias/ano por filial</strong>. O período considerado é sempre a <strong>data em que a auditoria foi realizada</strong> (não há cronograma fixo — a ordem das visitas é livre/aleatória, e o progresso é medido pelo que já foi efetivamente feito).</div>
+    <div class="info-bar">🗓 <strong>Cronograma & Progresso das Auditorias</strong> — acompanhamento <em>independente do Ranking</em>, baseado somente na planilha importada abaixo (Filial, Data/Dt Início, Status e Nota). Meta: <strong>${CRONO_META} auditorias/ano por filial</strong>. O período considerado é sempre a <strong>data em que a auditoria foi realizada</strong> (não há cronograma fixo — a ordem das visitas é livre/aleatória, e o progresso é medido pelo que já foi efetivamente feito). Apenas auditorias com <strong>Status = Finalizada</strong> contam para a meta — as demais aparecem como alerta abaixo.</div>
+
+    ${emAndamento.length ? `
+    <div class="chart-card" style="border:1px solid var(--red);background:rgba(220,53,69,.07);margin-bottom:20px;">
+      <div class="chart-title" style="color:var(--red-dk);">🔔 ${emAndamento.length} Auditoria(s) Em Andamento — ainda não finalizada(s)</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">Estas auditorias já foram iniciadas, mas continuam com Status = "Em andamento" na planilha. Elas <strong>não contam</strong> para a meta de ${CRONO_META}/ano até serem finalizadas — peça para o auditor concluir o lançamento no sistema de origem.</p>
+      <div style="overflow-x:auto;">
+        <table class="rank-table">
+          <thead><tr><th>Filial</th><th>Auditor</th><th>Nº Auditoria</th><th>Dt Início</th><th style="text-align:center;">Dias em Andamento</th></tr></thead>
+          <tbody>
+            ${emAndamento.map(r=>`<tr>
+              <td><b>${r.filial}</b> · ${r.filialNome}</td>
+              <td>${r.auditor}</td>
+              <td>${r.numero||'—'}</td>
+              <td>${r.dataDisplay}</td>
+              <td style="text-align:center;font-weight:700;color:${r.dias>30?'var(--red-dk)':r.dias>14?'var(--amber-dk)':'var(--text2)'};">${r.dias} dia(s)${r.dias>30?' ⚠':''}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ''}
 
     <div class="chart-card">
       <div class="chart-title">📥 Importar Planilha de Auditoria</div>
       <p style="font-size:12.5px;color:var(--text2);line-height:1.7;margin-bottom:12px;">
-        Envie a planilha (.xlsx ou .json) com as colunas <strong>Filial</strong>, <strong>Data da Auditoria</strong> (data em que ela foi realizada) e <strong>Nota</strong>. Auditor, Regional etc. são preenchidos automaticamente pela base de filiais — não é preciso informá-los.<br>
+        Envie a planilha (.xlsx ou .json) com as colunas <strong>Filial</strong>, <strong>Data/Dt Início da Auditoria</strong> e <strong>Nota</strong>. A coluna <strong>Status</strong> é opcional, mas se vier preenchida ("Finalizada"/"Em andamento"), as auditorias em andamento aparecem como alerta acima e ficam fora da meta até serem concluídas. Auditor, Regional etc. são preenchidos automaticamente pela base de filiais — não é preciso informá-los.<br>
         <span style="color:var(--amber-dk);">Cada novo arquivo substitui a base completa do Cronograma — sempre suba a planilha atualizada e completa, não apenas as novidades.</span>
       </p>
       <input type="file" id="inp-cronograma" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarCronogramaArquivo(this)">
@@ -1643,7 +1683,7 @@ function renderAbaCronograma() {
         <input id="crono-meta-input" type="number" min="1" max="24" value="${CRONO_META}" style="width:64px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
         <button class="btn-topo" style="padding:6px 10px;font-size:11.5px;" onclick="salvarCronogramaMeta()">Salvar</button>
       </div>
-      ${CRONO_ARQUIVO_INFO ? `<div style="margin-top:10px;font-size:11.5px;color:var(--text3);">✔ <strong>${CRONO_ARQUIVO_INFO.nome}</strong> importado em ${CRONO_ARQUIVO_INFO.importadoEm} · ${CRONO_ARQUIVO_INFO.qtdReconhecidas} auditoria(s) reconhecida(s)${CRONO_ARQUIVO_INFO.qtdIgnoradas?(' · '+CRONO_ARQUIVO_INFO.qtdIgnoradas+' linha(s) ignorada(s)'):''}</div>` : `<div style="margin-top:10px;font-size:11.5px;color:var(--text3);">Nenhuma planilha de Cronograma importada ainda.</div>`}
+      ${CRONO_ARQUIVO_INFO ? `<div style="margin-top:10px;font-size:11.5px;color:var(--text3);">✔ <strong>${CRONO_ARQUIVO_INFO.nome}</strong> importado em ${CRONO_ARQUIVO_INFO.importadoEm} · ${CRONO_ARQUIVO_INFO.qtdReconhecidas} auditoria(s) reconhecida(s)${CRONO_ARQUIVO_INFO.qtdAndamento?(' · '+CRONO_ARQUIVO_INFO.qtdAndamento+' em andamento'):''}${CRONO_ARQUIVO_INFO.qtdIgnoradas?(' · '+CRONO_ARQUIVO_INFO.qtdIgnoradas+' linha(s) ignorada(s)'):''}</div>` : `<div style="margin-top:10px;font-size:11.5px;color:var(--text3);">Nenhuma planilha de Cronograma importada ainda.</div>`}
     </div>
 
     ${!CRONO_AUDITORIAS.length ? '' : `
@@ -1651,7 +1691,8 @@ function renderAbaCronograma() {
       <div class="kpi b"><div class="kl">Progresso Geral ${anoSel}</div><div class="kv">${progressoGeral}%</div><div class="ks">${realizadasGeral}/${metaGeral} auditorias (limitado a ${CRONO_META}/filial)</div></div>
       <div class="kpi g"><div class="kl">Filiais com Meta Cumprida</div><div class="kv">${filiaisCompletas}/${totalFiliais}</div><div class="ks">${CRONO_META} de ${CRONO_META} auditorias no ano</div></div>
       <div class="kpi ${filiaisPendentes?'a':'g'}"><div class="kl">Filiais Pendentes</div><div class="kv">${filiaisPendentes}</div><div class="ks">${filiaisPendentes?'ainda não atingiram a meta':'cobertura completa 🎉'}</div></div>
-      <div class="kpi"><div class="kl">Total de Auditorias no Ano</div><div class="kv">${totalAuditoriasAno}</div><div class="ks">registros válidos em ${anoSel}</div></div>
+      <div class="kpi"><div class="kl">Total de Auditorias no Ano</div><div class="kv">${totalAuditoriasAno}</div><div class="ks">finalizadas em ${anoSel}</div></div>
+      <div class="kpi ${emAndamento.length?'a':'g'}"><div class="kl">🔔 Em Andamento</div><div class="kv">${emAndamento.length}</div><div class="ks">${emAndamento.length?'aguardando finalização':'nenhuma pendência'}</div></div>
     </div>
 
     <div class="chart-card"><div class="chart-title">📈 Evolução das Auditorias Finalizadas — ${anoSel}</div><canvas id="canvas-crono-evol" height="100"></canvas></div>
