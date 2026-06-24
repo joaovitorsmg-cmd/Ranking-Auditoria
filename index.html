@@ -464,6 +464,7 @@ const CRONO_FILIAIS_IGNORADAS = ['FAP','GRA','FAG'];
 function _cronoFiliaisValidas() { return Object.keys(BASE_FILIAIS).filter(s=>!CRONO_FILIAIS_IGNORADAS.includes(s)); }
 let CRONO_AUD_OCULTOS = new Set();          // auditores ocultados no filtro da tabela "Progresso por Auditor"
 let _cronoEmAndSort = { col:'dias', dir:-1 }; // estado de ordenação do card "Em Andamento"
+let _cronoDetSort = { col:'qtd', dir:1 };      // estado de ordenação da tabela "Detalhe por Filial"
 
 // ============================================================
 // ENRIQUECER COM BASE DE FILIAIS
@@ -1648,11 +1649,14 @@ function consolidarCronograma(ano) {
     const regs=CRONO_AUDITORIAS.filter(r=>r.filial===sigla && r.ano===ano && _cronoEhFinalizada(r)).sort((a,b)=>a.data.localeCompare(b.data));
     const qtd=regs.length;
     const notas=regs.filter(r=>r.nota!=null).map(r=>r.nota);
+    const ultimaReg=regs.length ? regs[regs.length-1] : null;
     return {
-      filial:sigla, filialNome:info.loja, auditor:info.auditor||'—', regional:info.regional||'—',
+      filial:sigla, filialNome:info.loja, numero:info.filial, auditor:info.auditor||'—', regional:info.regional||'—',
       qtd, meta:CRONO_META, faltam:Math.max(0,CRONO_META-qtd),
       progresso:Math.min(100, Math.round(qtd/CRONO_META*100)),
-      ultima: regs.length ? regs[regs.length-1].dataDisplay : null,
+      ultima: ultimaReg ? ultimaReg.dataDisplay : null,
+      ultimaISO: ultimaReg ? ultimaReg.data : null,
+      diasUltima: ultimaReg ? Math.floor((new Date()-new Date(ultimaReg.data+'T00:00:00'))/86400000) : null,
       notaMedia: notas.length ? Math.round(notas.reduce((a,b)=>a+b,0)/notas.length*10)/10 : null,
       noRitmo: qtd>=ritmoEsperadoFilial,
     };
@@ -1803,14 +1807,17 @@ function renderAbaCronograma() {
       </div>
       <div class="rank-wrap">
         <div style="overflow-x:auto;">
-          <table class="rank-table">
+          <table class="rank-table" id="tabela-crono-detalhe">
             <thead><tr>
-              <th>Filial</th><th>Auditor</th><th>Regional</th>
-              <th style="text-align:center;">Auditorias no Ano</th>
-              <th style="text-align:center;">Faltam</th>
-              <th style="text-align:center;">Progresso</th>
-              <th>Última Auditoria</th>
-              <th style="text-align:center;">Nota Média</th>
+              <th class="sortavel" data-col="filialNome" onclick="_cronoSortDetalhe('filialNome')">Filial</th>
+              <th class="sortavel" data-col="auditor" onclick="_cronoSortDetalhe('auditor')">Auditor</th>
+              <th class="sortavel" data-col="regional" onclick="_cronoSortDetalhe('regional')">Regional</th>
+              <th class="sortavel" data-col="qtd" style="text-align:center;" onclick="_cronoSortDetalhe('qtd')">Auditorias no Ano</th>
+              <th class="sortavel" data-col="faltam" style="text-align:center;" onclick="_cronoSortDetalhe('faltam')">Faltam</th>
+              <th class="sortavel" data-col="progresso" style="text-align:center;" onclick="_cronoSortDetalhe('progresso')">Progresso</th>
+              <th class="sortavel" data-col="ultimaISO" onclick="_cronoSortDetalhe('ultimaISO')">Última Auditoria</th>
+              <th class="sortavel" data-col="notaMedia" style="text-align:center;" onclick="_cronoSortDetalhe('notaMedia')">Nota Média</th>
+              <th class="sortavel" data-col="noRitmo" style="text-align:center;" onclick="_cronoSortDetalhe('noRitmo')">Situação</th>
             </tr></thead>
             <tbody id="body-crono"></tbody>
           </table>
@@ -2013,18 +2020,35 @@ function _cronoAbrirDetalheKpi(tipo) {
   document.getElementById('modal-kpi-detalhe').classList.remove('hidden');
 }
 
+function _cronoCompareDetalhe(a, b, col, dir) {
+  if (col==='ultimaISO') return (a.ultimaISO||'0000-00-00').localeCompare(b.ultimaISO||'0000-00-00')*dir;
+  if (col==='noRitmo') return ((a.noRitmo?1:0)-(b.noRitmo?1:0))*dir;
+  const numCols=['qtd','faltam','progresso','notaMedia'];
+  if (numCols.includes(col)) {
+    const av=a[col]==null?-1:a[col], bv=b[col]==null?-1:b[col];
+    return (av-bv)*dir;
+  }
+  return String(a[col]||'').localeCompare(String(b[col]||''),'pt-BR',{numeric:true,sensitivity:'base'})*dir;
+}
+
+function _cronoSortDetalhe(col) {
+  if (_cronoDetSort.col===col) _cronoDetSort.dir*=-1; else _cronoDetSort={col,dir:1};
+  renderTabelaCronograma();
+}
+
 function renderTabelaCronograma() {
   const body=document.getElementById('body-crono');
   if (!body) return;
   const busca=(document.getElementById('busca-crono')?.value||'').trim().toUpperCase();
   const filAud=document.getElementById('fil-auditor-crono')?.value||'';
+  const {col,dir}=_cronoDetSort;
   let lista=(window._cronoDadosFilial||[]).filter(f=>{
     if (filAud && f.auditor!==filAud) return false;
     if (busca && !(f.filial.includes(busca) || f.filialNome.toUpperCase().includes(busca) || f.auditor.toUpperCase().includes(busca))) return false;
     return true;
-  }).sort((a,b)=> a.qtd-b.qtd || a.filialNome.localeCompare(b.filialNome));
+  }).sort((a,b)=>_cronoCompareDetalhe(a,b,col,dir));
   body.innerHTML = lista.map(f=>`<tr>
-    <td><b>${f.filial}</b><br><span style="font-size:11px;color:var(--text3)">${f.filialNome}</span></td>
+    <td><b style="font-size:13px;">${f.filialNome}</b><br><span style="font-size:11px;color:var(--text3)">${f.filial} · Nº ${f.numero}</span></td>
     <td>${f.auditor}</td><td>${f.regional}</td>
     <td style="text-align:center;font-weight:600;">${f.qtd}<span style="color:var(--text3);font-weight:400;">/${f.meta}</span></td>
     <td style="text-align:center;font-weight:600;color:${f.faltam?'var(--amber-dk)':'var(--green-dk)'};">${f.faltam}</td>
@@ -2032,9 +2056,14 @@ function renderTabelaCronograma() {
       <div class="bar-wrap" style="height:8px;"><div class="bar-fill" style="width:${f.progresso}%;background:${f.progresso>=100?'var(--green)':f.progresso>=50?'var(--amber)':'var(--red)'}"></div></div>
       <span style="font-size:9px;color:var(--text3)">${f.progresso}%</span>
     </td>
-    <td style="font-size:12px;">${f.ultima||'<span style="color:var(--text3)">nunca auditada</span>'}</td>
+    <td style="font-size:12px;">${f.ultima?`${f.ultima} <span style="color:${f.diasUltima>60?'var(--red-dk)':f.diasUltima>30?'var(--amber-dk)':'var(--text3)'};font-size:10.5px;">(${f.diasUltima}d)</span>`:'<span style="color:var(--text3)">nunca auditada</span>'}</td>
     <td style="text-align:center;">${f.notaMedia!=null?f.notaMedia:'—'}</td>
-  </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px;">Nenhuma filial encontrada.</td></tr>';
+    <td style="text-align:center;font-size:11px;color:${f.noRitmo?'var(--green-dk)':'var(--amber-dk)'};">${f.noRitmo?'✔ no ritmo':'⚠ atrasada'}</td>
+  </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px;">Nenhuma filial encontrada.</td></tr>';
+  document.querySelectorAll('#tabela-crono-detalhe th[data-col]').forEach(th=>{
+    const ind=th.querySelector('.sort-ind'); if (ind) ind.remove();
+    if (th.dataset.col===col) th.insertAdjacentHTML('beforeend', `<span class="sort-ind">${dir>0?'▲':'▼'}</span>`);
+  });
 }
 
 // ---------- ABA GUIA DE REGRAS ----------
