@@ -363,6 +363,9 @@ canvas{max-width:100%;}
       <span style="color:var(--amber-dk);font-size:12px;">🔒 Importar e editar dados exige a senha de operador.</span></p>
       <button class="btn-az" onclick="event.stopPropagation();triggerImport()">📂 Selecionar Arquivos</button>
     </div>
+    <div style="text-align:center;margin-top:18px;">
+      <button class="btn-topo" onclick="abrirAbaCronograma()">🗓 Acompanhar Cronograma de Auditorias (sem precisar importar o ranking)</button>
+    </div>
     <div class="arqs-wrap" id="arqs-wrap"></div>
     <div id="btn-processar-wrap" class="hidden" style="text-align:center;margin-top:16px;">
       <button class="btn-az" onclick="processarERenderizar()" style="font-size:14px;padding:12px 32px;">⚡ Gerar Ranking</button>
@@ -378,6 +381,7 @@ canvas{max-width:100%;}
       <div class="aba" onclick="mudarAba('auditor')" id="aba-auditor">👤 Por Auditor</div>
       <div class="aba" onclick="mudarAba('evolucao')" id="aba-evolucao">📈 Evolução</div>
       <div class="aba" onclick="mudarAba('cobertura')" id="aba-cobertura">✅ Cobertura</div>
+      <div class="aba" onclick="mudarAba('cronograma')" id="aba-cronograma">🗓 Cronograma</div>
       <div class="aba" onclick="mudarAba('guia')" id="aba-guia">📖 Guia</div>
       <div class="aba" onclick="mudarAba('config')" id="aba-config" style="margin-left:auto;">⚙ Configurações</div>
     </div>
@@ -409,6 +413,15 @@ let CONFIG = { dataPremio:'', ano: new Date().getFullYear(), tetoBonus: 5, total
 let ABA_ATUAL = 'anual';
 let SORT_STATE = { col:'scoreFinal', asc:false };
 let chartEvol = null;
+
+// ============================================================
+// ESTADO DA ABA CRONOGRAMA (independente do Ranking — base própria)
+// ============================================================
+let CRONO_AUDITORIAS = [];      // [{filial, data:'YYYY-MM-DD', dataDisplay, ano, nota}]
+let CRONO_ARQUIVO_INFO = null;  // {nome, qtdReconhecidas, qtdIgnoradas, importadoEm}
+let CRONO_META = 6;             // meta de auditorias por filial no ano
+let CRONO_ANO_SEL = null;       // ano selecionado no filtro da aba
+let chartCronoEvol = null;
 
 // ============================================================
 // ENRIQUECER COM BASE DE FILIAIS
@@ -968,7 +981,7 @@ function ordenarComDesempate(arr, keyScore) {
 // ============================================================
 function mudarAba(aba) {
   ABA_ATUAL = aba;
-  ['anual','periodo','regional','auditor','evolucao','cobertura','guia','config'].forEach(a=>{
+  ['anual','periodo','regional','auditor','evolucao','cobertura','cronograma','guia','config'].forEach(a=>{
     document.getElementById('aba-'+a)?.classList.toggle('ativa', a===aba);
   });
   if (aba==='anual') renderAbaAnual();
@@ -977,6 +990,7 @@ function mudarAba(aba) {
   else if (aba==='auditor') renderAbaAuditor();
   else if (aba==='evolucao') renderAbaEvolucao();
   else if (aba==='cobertura') renderAbaCobertura();
+  else if (aba==='cronograma') renderAbaCronograma();
   else if (aba==='guia') renderAbaGuia();
   else if (aba==='config') renderAbaConfig();
 }
@@ -985,6 +999,12 @@ function abrirAbaConfig() {
   document.getElementById('painel').classList.remove('hidden');
   document.getElementById('tela-import').style.display='none';
   mudarAba('config');
+}
+
+function abrirAbaCronograma() {
+  document.getElementById('painel').classList.remove('hidden');
+  document.getElementById('tela-import').style.display='none';
+  mudarAba('cronograma');
 }
 
 function scClass(s){ return s>=90?'sp-ouro':s>=70?'sp-verde':s>=40?'sp-amar':'sp-verm'; }
@@ -1410,6 +1430,336 @@ function renderAbaCobertura() {
     </div>`:''}`;
 }
 
+// ============================================================
+// ABA CRONOGRAMA — PROGRESSO E EVOLUÇÃO DOS AUDITORES
+// Base própria (planilha importada aqui mesmo) — não usa REGISTROS/
+// AUDITORIA_NOTAS do Ranking, apenas a base estática de filiais (BASE_FILIAIS)
+// para descobrir o auditor responsável por cada filial.
+// ============================================================
+function triggerCronogramaImport(){ document.getElementById('inp-cronograma').click(); }
+
+function _cronoParseData(v) {
+  if (v===null||v===undefined||v==='') return null;
+  if (typeof v==='number') return _excelToDate(v);
+  const s=String(v).trim();
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (m) { let y=+m[3]; if (y<100) y+=2000; return new Date(y, +m[2]-1, +m[1]); }
+  return null;
+}
+
+function _cronoResolveFilial(v) {
+  if (v===null||v===undefined) return null;
+  const raw=String(v).trim();
+  if (!raw) return null;
+  const up=raw.toUpperCase();
+  if (BASE_FILIAIS[up]) return up;
+  const m=up.match(/-\s*(.+)$/);
+  if (m && BASE_FILIAIS[m[1].trim()]) return m[1].trim();
+  const porNome=Object.keys(BASE_FILIAIS).find(s=>BASE_FILIAIS[s].loja.toUpperCase()===up);
+  if (porNome) return porNome;
+  const numRaw=raw.replace(/\D/g,'');
+  if (numRaw) {
+    const porNumero=Object.keys(BASE_FILIAIS).find(s=>String(BASE_FILIAIS[s].filial)===numRaw);
+    if (porNumero) return porNumero;
+  }
+  return null;
+}
+
+function processarCronogramaArquivo(input) {
+  const file=input.files[0]; if (!file) return;
+  const nome=file.name;
+  const aplicar=function(matrix) {
+    if (!matrix||!matrix.length) { alert('Planilha vazia ou inválida.'); return; }
+    const idxFilial=_colIdx(matrix[0], 'filial','loja','unidade');
+    const idxData=_colIdx(matrix[0], 'data');
+    const idxNota=_colIdx(matrix[0], 'nota','pont','score');
+    if (idxFilial<0 || idxData<0) {
+      alert('Estrutura não reconhecida. Esperado colunas: Filial, Data da Auditoria e Nota.'); return;
+    }
+    const novos=[]; let ignoradas=0;
+    for (let i=1; i<matrix.length; i++) {
+      const row=matrix[i]; if (!row||!row[idxFilial]) continue;
+      const sigla=_cronoResolveFilial(row[idxFilial]);
+      const dt=_cronoParseData(row[idxData]);
+      if (!sigla || !dt || isNaN(dt.getTime())) { ignoradas++; continue; }
+      const notaRaw=idxNota>-1 ? parseFloat(String(row[idxNota]).replace(',','.')) : NaN;
+      novos.push({
+        filial:sigla,
+        data: dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'),
+        dataDisplay: String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear(),
+        ano: dt.getFullYear(),
+        nota: isNaN(notaRaw) ? null : Math.round(notaRaw*10)/10,
+      });
+    }
+    if (!novos.length) { alert('Nenhuma linha válida encontrada (verifique as colunas Filial e Data).'); return; }
+    CRONO_AUDITORIAS=novos;
+    CRONO_ARQUIVO_INFO={ nome, qtdReconhecidas:novos.length, qtdIgnoradas:ignoradas, importadoEm:new Date().toLocaleString('pt-BR') };
+    CRONO_ANO_SEL=null;
+    input.value='';
+    if (ABA_ATUAL==='cronograma') renderAbaCronograma();
+    if (getBinId() && getMasterKey()) syncPush();
+    alert('Planilha de Cronograma carregada! '+novos.length+' auditoria(s) reconhecida(s)'+(ignoradas?(' · '+ignoradas+' linha(s) ignorada(s)'):'')+'.');
+  };
+  const lower=nome.toLowerCase();
+  if (lower.endsWith('.json')) {
+    const r=new FileReader();
+    r.onload=e=>{
+      try {
+        const j=JSON.parse(e.target.result);
+        const rows=Array.isArray(j) ? j : (j.dados||j.linhas||[]);
+        const matrix=[['Filial','Data','Nota']].concat(rows.map(x=>[x.filial||x.Filial||x.loja||x.Loja, x.data||x.Data||x.dataAuditoria||x.dataAuditada, x.nota||x.Nota||x.pontos||x.Pontos]));
+        aplicar(matrix);
+      } catch(err) { alert('JSON inválido: '+err.message); }
+    };
+    r.readAsText(file);
+  } else {
+    const r=new FileReader();
+    r.onload=e=>{
+      try {
+        const wb=XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:false});
+        const ws0=wb.Sheets[wb.SheetNames[0]];
+        const matrix=XLSX.utils.sheet_to_json(ws0, {header:1, defval:'', raw:true});
+        aplicar(matrix);
+      } catch(err) { alert('Erro ao ler planilha: '+err.message); }
+    };
+    r.readAsArrayBuffer(file);
+  }
+}
+
+function limparCronograma() {
+  if (!confirm('Remover todos os dados do Cronograma de Auditorias? Isso não afeta o Ranking.')) return;
+  CRONO_AUDITORIAS=[]; CRONO_ARQUIVO_INFO=null;
+  renderAbaCronograma();
+  if (getBinId() && getMasterKey()) syncPush();
+}
+
+function salvarCronogramaMeta() {
+  const v=parseInt(document.getElementById('crono-meta-input').value);
+  if (!v || v<1) { alert('Informe um número válido de auditorias/ano.'); return; }
+  CRONO_META=v;
+  renderAbaCronograma();
+  if (getBinId() && getMasterKey()) syncPush();
+}
+
+function _cronoAnosDisponiveis() {
+  const anos=new Set(CRONO_AUDITORIAS.map(r=>r.ano));
+  anos.add(new Date().getFullYear());
+  return [...anos].sort((a,b)=>b-a);
+}
+
+function _cronoDiasNoAno(ano) {
+  return ((ano%4===0 && ano%100!==0) || ano%400===0) ? 366 : 365;
+}
+
+// Fração do ano já decorrida (1 = ano passado por completo, 0 = ano futuro)
+function _cronoFracaoAno(ano) {
+  const hoje=new Date();
+  if (ano<hoje.getFullYear()) return 1;
+  if (ano>hoje.getFullYear()) return 0;
+  const inicio=new Date(ano,0,1);
+  const diaDoAno=Math.floor((hoje-inicio)/86400000)+1;
+  return Math.min(1, diaDoAno/_cronoDiasNoAno(ano));
+}
+
+function consolidarCronograma(ano) {
+  const porFilial=Object.keys(BASE_FILIAIS).map(sigla=>{
+    const info=BASE_FILIAIS[sigla];
+    const regs=CRONO_AUDITORIAS.filter(r=>r.filial===sigla && r.ano===ano).sort((a,b)=>a.data.localeCompare(b.data));
+    const qtd=regs.length;
+    const notas=regs.filter(r=>r.nota!=null).map(r=>r.nota);
+    return {
+      filial:sigla, filialNome:info.loja, auditor:info.auditor||'—', regional:info.regional||'—',
+      qtd, meta:CRONO_META, faltam:Math.max(0,CRONO_META-qtd),
+      progresso:Math.min(100, Math.round(qtd/CRONO_META*100)),
+      ultima: regs.length ? regs[regs.length-1].dataDisplay : null,
+      notaMedia: notas.length ? Math.round(notas.reduce((a,b)=>a+b,0)/notas.length*10)/10 : null,
+    };
+  });
+
+  const porAuditor={};
+  porFilial.forEach(f=>{ (porAuditor[f.auditor]=porAuditor[f.auditor]||[]).push(f); });
+  const fracaoAno=_cronoFracaoAno(ano);
+  const auditores=Object.entries(porAuditor).map(([auditor,filiais])=>{
+    const metaTotal=filiais.length*CRONO_META;
+    const realizadas=filiais.reduce((s,f)=>s+f.qtd,0);
+    const realizadasCapped=filiais.reduce((s,f)=>s+Math.min(f.qtd,CRONO_META),0);
+    const progresso=Math.round(realizadasCapped/Math.max(metaTotal,1)*100);
+    const pendentes=filiais.filter(f=>f.faltam>0).sort((x,y)=>x.qtd-y.qtd);
+    const ritmoEsperado=Math.round(metaTotal*fracaoAno);
+    const projecaoFinal=fracaoAno>0.02 ? Math.round(realizadasCapped/fracaoAno) : realizadasCapped;
+    return {
+      auditor, totalFiliais:filiais.length, metaTotal, realizadas, realizadasCapped, progresso,
+      pendentes, ritmoEsperado, projecaoFinal,
+      noRitmo: realizadasCapped>=ritmoEsperado,
+      vaiConcluir: projecaoFinal>=metaTotal,
+      filiais,
+    };
+  }).sort((a,b)=>b.progresso-a.progresso);
+
+  return { porFilial, auditores, fracaoAno };
+}
+
+function _cronoCumulativoPorMes(ano) {
+  const porMes=new Array(12).fill(0);
+  CRONO_AUDITORIAS.filter(r=>r.ano===ano).forEach(r=>{ porMes[+r.data.slice(5,7)-1]++; });
+  const cum=[]; let acc=0;
+  for (let i=0;i<12;i++) { acc+=porMes[i]; cum.push(acc); }
+  return cum;
+}
+
+function renderAbaCronograma() {
+  const c=document.getElementById('conteudo-abas');
+  const anos=_cronoAnosDisponiveis();
+  if (!CRONO_ANO_SEL || !anos.includes(CRONO_ANO_SEL)) {
+    CRONO_ANO_SEL = anos.includes(new Date().getFullYear()) ? new Date().getFullYear() : anos[0];
+  }
+  const anoSel=CRONO_ANO_SEL;
+  const dados=consolidarCronograma(anoSel);
+  const totalFiliais=dados.porFilial.length;
+  const filiaisCompletas=dados.porFilial.filter(f=>f.qtd>=CRONO_META).length;
+  const filiaisPendentes=totalFiliais-filiaisCompletas;
+  const metaGeral=totalFiliais*CRONO_META;
+  const realizadasGeral=dados.porFilial.reduce((s,f)=>s+Math.min(f.qtd,CRONO_META),0);
+  const totalAuditoriasAno=dados.porFilial.reduce((s,f)=>s+f.qtd,0);
+  const progressoGeral=Math.round(realizadasGeral/Math.max(metaGeral,1)*100);
+
+  c.innerHTML = `
+    <div class="info-bar">🗓 <strong>Cronograma & Progresso das Auditorias</strong> — acompanhamento <em>independente do Ranking</em>, baseado somente na planilha importada abaixo (Filial, Data da Auditoria e Nota). Meta: <strong>${CRONO_META} auditorias/ano por filial</strong>. O período considerado é sempre a <strong>data em que a auditoria foi realizada</strong> (não há cronograma fixo — a ordem das visitas é livre/aleatória, e o progresso é medido pelo que já foi efetivamente feito).</div>
+
+    <div class="chart-card">
+      <div class="chart-title">📥 Importar Planilha de Auditoria</div>
+      <p style="font-size:12.5px;color:var(--text2);line-height:1.7;margin-bottom:12px;">
+        Envie a planilha (.xlsx ou .json) com as colunas <strong>Filial</strong>, <strong>Data da Auditoria</strong> (data em que ela foi realizada) e <strong>Nota</strong>. Auditor, Regional etc. são preenchidos automaticamente pela base de filiais — não é preciso informá-los.<br>
+        <span style="color:var(--amber-dk);">Cada novo arquivo substitui a base completa do Cronograma — sempre suba a planilha atualizada e completa, não apenas as novidades.</span>
+      </p>
+      <input type="file" id="inp-cronograma" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarCronogramaArquivo(this)">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="btn-az" style="margin:0;font-size:12.5px;padding:9px 16px;" onclick="triggerCronogramaImport()">📂 Selecionar Planilha</button>
+        ${CRONO_ARQUIVO_INFO ? `<button class="btn-topo danger" onclick="limparCronograma()">🗑 Limpar Dados</button>` : ''}
+        ${anos.length>1 ? `<select class="sel-sm" onchange="CRONO_ANO_SEL=parseInt(this.value);renderAbaCronograma();">${anos.map(a=>`<option value="${a}" ${a===anoSel?'selected':''}>Ano ${a}</option>`).join('')}</select>` : ''}
+        <span style="font-size:12px;color:var(--text2);margin-left:auto;">Meta auditorias/ano por filial:</span>
+        <input id="crono-meta-input" type="number" min="1" max="24" value="${CRONO_META}" style="width:64px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+        <button class="btn-topo" style="padding:6px 10px;font-size:11.5px;" onclick="salvarCronogramaMeta()">Salvar</button>
+      </div>
+      ${CRONO_ARQUIVO_INFO ? `<div style="margin-top:10px;font-size:11.5px;color:var(--text3);">✔ <strong>${CRONO_ARQUIVO_INFO.nome}</strong> importado em ${CRONO_ARQUIVO_INFO.importadoEm} · ${CRONO_ARQUIVO_INFO.qtdReconhecidas} auditoria(s) reconhecida(s)${CRONO_ARQUIVO_INFO.qtdIgnoradas?(' · '+CRONO_ARQUIVO_INFO.qtdIgnoradas+' linha(s) ignorada(s)'):''}</div>` : `<div style="margin-top:10px;font-size:11.5px;color:var(--text3);">Nenhuma planilha de Cronograma importada ainda.</div>`}
+    </div>
+
+    ${!CRONO_AUDITORIAS.length ? '' : `
+    <div class="kpi-grid" style="margin-bottom:20px;">
+      <div class="kpi b"><div class="kl">Progresso Geral ${anoSel}</div><div class="kv">${progressoGeral}%</div><div class="ks">${realizadasGeral}/${metaGeral} auditorias (limitado a ${CRONO_META}/filial)</div></div>
+      <div class="kpi g"><div class="kl">Filiais com Meta Cumprida</div><div class="kv">${filiaisCompletas}/${totalFiliais}</div><div class="ks">${CRONO_META} de ${CRONO_META} auditorias no ano</div></div>
+      <div class="kpi ${filiaisPendentes?'a':'g'}"><div class="kl">Filiais Pendentes</div><div class="kv">${filiaisPendentes}</div><div class="ks">${filiaisPendentes?'ainda não atingiram a meta':'cobertura completa 🎉'}</div></div>
+      <div class="kpi"><div class="kl">Total de Auditorias no Ano</div><div class="kv">${totalAuditoriasAno}</div><div class="ks">registros válidos em ${anoSel}</div></div>
+    </div>
+
+    <div class="chart-card"><div class="chart-title">📈 Evolução das Auditorias Finalizadas — ${anoSel}</div><canvas id="canvas-crono-evol" height="100"></canvas></div>
+
+    <div class="secao"><div class="secao-titulo">Progresso por Auditor</div>
+      <div class="rank-wrap">
+        <div class="rank-header"><span>Cronograma por Auditor — ${anoSel}</span></div>
+        <div style="overflow-x:auto;">
+          <table class="rank-table">
+            <thead><tr>
+              <th>Auditor</th><th style="text-align:center;">Filiais</th>
+              <th style="text-align:center;">Realizadas</th>
+              <th style="text-align:center;">Progresso</th>
+              <th style="text-align:center;">Ritmo Esperado*</th>
+              <th>Projeção até Dez/${anoSel}</th>
+              <th>Pendências (o que ainda falta)</th>
+            </tr></thead>
+            <tbody>
+              ${dados.auditores.map(a=>{
+                const pendChips = a.pendentes.length
+                  ? a.pendentes.map(f=>`<span class="cob-chip cob-falta" title="${f.filialNome} · última auditoria: ${f.ultima||'nunca auditada neste ano'}">${f.filial} · faltam ${f.faltam}</span>`).join(' ')
+                  : '<span class="cob-chip cob-ok">Meta cumprida em todas ✔</span>';
+                return `<tr>
+                  <td><b>${a.auditor}</b></td>
+                  <td style="text-align:center;">${a.totalFiliais}</td>
+                  <td style="text-align:center;font-weight:600;">${a.realizadasCapped}<span style="color:var(--text3);font-weight:400;">/${a.metaTotal}</span></td>
+                  <td style="text-align:center;min-width:100px;">
+                    <div class="bar-wrap" style="height:8px;"><div class="bar-fill" style="width:${a.progresso}%;background:${a.progresso>=80?'var(--green)':a.progresso>=50?'var(--amber)':'var(--red)'}"></div></div>
+                    <span style="font-size:9px;color:var(--text3)">${a.progresso}%</span>
+                  </td>
+                  <td style="text-align:center;font-size:12px;color:${a.noRitmo?'var(--green-dk)':'var(--amber-dk)'};">${a.ritmoEsperado}${a.noRitmo?' ✔':' ⚠'}</td>
+                  <td style="font-size:12px;color:${a.vaiConcluir?'var(--green-dk)':'var(--red-dk)'};">${a.vaiConcluir?`No ritmo atual, conclui as ${a.metaTotal} auditorias até o fim do ano (projeção: ${a.projecaoFinal}).`:`No ritmo atual, deve fechar o ano com ~${a.projecaoFinal}/${a.metaTotal} (faltariam ${Math.max(0,a.metaTotal-a.projecaoFinal)}).`}</td>
+                  <td><div style="display:flex;flex-wrap:wrap;gap:4px;max-width:340px;">${pendChips}</div></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div style="font-size:10.5px;color:var(--text3);margin-top:6px;">* Ritmo esperado = quantas auditorias o auditor já deveria ter feito até hoje (${Math.round(dados.fracaoAno*100)}% do ano ${anoSel} decorrido) para cumprir a meta de ${CRONO_META}/filial até 31/12. Projeção = total estimado ao fim do ano mantendo o ritmo atual.</div>
+    </div>
+
+    <div class="secao"><div class="secao-titulo">Detalhe por Filial</div>
+      <div class="filtros-bar">
+        <input class="busca" id="busca-crono" placeholder="Buscar filial/auditor..." oninput="renderTabelaCronograma()">
+        <select class="sel-sm" id="fil-auditor-crono" onchange="renderTabelaCronograma()"><option value="">Todos os Auditores</option>${[...new Set(dados.porFilial.map(f=>f.auditor))].sort().map(a=>`<option>${a}</option>`).join('')}</select>
+      </div>
+      <div class="rank-wrap">
+        <div style="overflow-x:auto;">
+          <table class="rank-table">
+            <thead><tr>
+              <th>Filial</th><th>Auditor</th><th>Regional</th>
+              <th style="text-align:center;">Auditorias no Ano</th>
+              <th style="text-align:center;">Faltam</th>
+              <th style="text-align:center;">Progresso</th>
+              <th>Última Auditoria</th>
+              <th style="text-align:center;">Nota Média</th>
+            </tr></thead>
+            <tbody id="body-crono"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>`}`;
+
+  if (!CRONO_AUDITORIAS.length) return;
+  window._cronoDadosFilial = dados.porFilial;
+  renderTabelaCronograma();
+  setTimeout(()=>{
+    const ctx=document.getElementById('canvas-crono-evol');
+    if (!ctx) return;
+    if (chartCronoEvol) chartCronoEvol.destroy();
+    const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const cum=_cronoCumulativoPorMes(anoSel);
+    const mesAtual=(anoSel===new Date().getFullYear()) ? new Date().getMonth() : 11;
+    const realData=cum.map((v,i)=> i<=mesAtual ? v : null);
+    const metaLinha=meses.map((_,i)=>Math.round(metaGeral*(i+1)/12));
+    chartCronoEvol=new Chart(ctx,{type:'line',data:{labels:meses,datasets:[
+      {label:'Realizado (acumulado)', data:realData, borderColor:'#2b7fd4', backgroundColor:'rgba(43,127,212,.12)', tension:.25, spanGaps:false, pointRadius:3, fill:true},
+      {label:'Meta Ideal (ritmo linear)', data:metaLinha, borderColor:'#54667f', borderDash:[5,4], pointRadius:0, tension:0, fill:false},
+    ]}, options:{responsive:true, plugins:{legend:{labels:{color:'#8ba2c2',font:{size:10},boxWidth:12}}},
+      scales:{y:{beginAtZero:true,grid:{color:'#1a2c47'},ticks:{color:'#54667f'}},x:{grid:{color:'#1a2c47'},ticks:{color:'#54667f'}}}}});
+  },50);
+}
+
+function renderTabelaCronograma() {
+  const body=document.getElementById('body-crono');
+  if (!body) return;
+  const busca=(document.getElementById('busca-crono')?.value||'').trim().toUpperCase();
+  const filAud=document.getElementById('fil-auditor-crono')?.value||'';
+  let lista=(window._cronoDadosFilial||[]).filter(f=>{
+    if (filAud && f.auditor!==filAud) return false;
+    if (busca && !(f.filial.includes(busca) || f.filialNome.toUpperCase().includes(busca) || f.auditor.toUpperCase().includes(busca))) return false;
+    return true;
+  }).sort((a,b)=> a.qtd-b.qtd || a.filialNome.localeCompare(b.filialNome));
+  body.innerHTML = lista.map(f=>`<tr>
+    <td><b>${f.filial}</b><br><span style="font-size:11px;color:var(--text3)">${f.filialNome}</span></td>
+    <td>${f.auditor}</td><td>${f.regional}</td>
+    <td style="text-align:center;font-weight:600;">${f.qtd}<span style="color:var(--text3);font-weight:400;">/${f.meta}</span></td>
+    <td style="text-align:center;font-weight:600;color:${f.faltam?'var(--amber-dk)':'var(--green-dk)'};">${f.faltam}</td>
+    <td style="min-width:100px;">
+      <div class="bar-wrap" style="height:8px;"><div class="bar-fill" style="width:${f.progresso}%;background:${f.progresso>=100?'var(--green)':f.progresso>=50?'var(--amber)':'var(--red)'}"></div></div>
+      <span style="font-size:9px;color:var(--text3)">${f.progresso}%</span>
+    </td>
+    <td style="font-size:12px;">${f.ultima||'<span style="color:var(--text3)">nunca auditada</span>'}</td>
+    <td style="text-align:center;">${f.notaMedia!=null?f.notaMedia:'—'}</td>
+  </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px;">Nenhuma filial encontrada.</td></tr>';
+}
+
 // ---------- ABA GUIA DE REGRAS ----------
 function renderAbaGuia() {
   const c = document.getElementById('conteudo-abas');
@@ -1686,9 +2036,9 @@ function exportarRankingXLS() {
 }
 
 function salvarRankingJSON() {
-  if(!REGISTROS.length && !Object.keys(FAT_HISTORICO).length){ alert('Sem dados.'); return; }
+  if(!REGISTROS.length && !Object.keys(FAT_HISTORICO).length && !CRONO_AUDITORIAS.length){ alert('Sem dados.'); return; }
   const dt=new Date().toLocaleDateString('pt-BR').split('/').join('-');
-  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,fatHistorico:FAT_HISTORICO,fatBaseInfo:FAT_BASE_INFO,auditoriaNotas:AUDITORIA_NOTAS,auditoriaNotasInfo:AUDITORIA_NOTAS_INFO,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS};
+  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,fatHistorico:FAT_HISTORICO,fatBaseInfo:FAT_BASE_INFO,auditoriaNotas:AUDITORIA_NOTAS,auditoriaNotasInfo:AUDITORIA_NOTAS_INFO,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS,cronoAuditorias:CRONO_AUDITORIAS,cronoArquivoInfo:CRONO_ARQUIVO_INFO,cronoMeta:CRONO_META};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=`Ranking_Backup_${dt}.json`;a.click();
@@ -1709,9 +2059,13 @@ function lerBackupJSON(input) {
       if(d.observacoes) OBSERVACOES=d.observacoes;
       if(d.config) CONFIG=Object.assign(CONFIG,d.config);
       if(d.arquivos) ARQUIVOS=d.arquivos;
+      if(d.cronoAuditorias) CRONO_AUDITORIAS=d.cronoAuditorias;
+      if(d.cronoArquivoInfo) CRONO_ARQUIVO_INFO=d.cronoArquivoInfo;
+      if(d.cronoMeta) CRONO_META=d.cronoMeta;
       if(d.arquivos && d.arquivos.length) { processarERenderizar(); }
       else if(d.registros){ REGISTROS=d.registros; document.getElementById('tela-import').style.display='none'; document.getElementById('painel').classList.remove('hidden'); mudarAba('anual'); }
       else if(d.fatHistorico){ document.getElementById('tela-import').style.display='none'; document.getElementById('painel').classList.remove('hidden'); mudarAba('anual'); }
+      else if(d.cronoAuditorias && d.cronoAuditorias.length){ document.getElementById('tela-import').style.display='none'; document.getElementById('painel').classList.remove('hidden'); mudarAba('cronograma'); }
       alert('Dados carregados.');
     }catch(err){ alert('Erro: '+err.message); }
   };
@@ -1812,7 +2166,9 @@ async function syncPull(){
   setSyncStatus('syncing','Carregando...');
   try{
     const remote=await jbinRead(binId, getReadKey());
-    if(remote && (Array.isArray(remote.registros)&&remote.registros.length || (remote.arquivos&&remote.arquivos.length) || (remote.fatHistorico&&Object.keys(remote.fatHistorico).length))){
+    const temRanking = remote && (Array.isArray(remote.registros)&&remote.registros.length || (remote.arquivos&&remote.arquivos.length) || (remote.fatHistorico&&Object.keys(remote.fatHistorico).length));
+    const temCrono = remote && Array.isArray(remote.cronoAuditorias) && remote.cronoAuditorias.length;
+    if(remote && (temRanking || temCrono)){
       if(remote.faturamentos) FATURAMENTOS=remote.faturamentos;
       if(remote.fatHistorico) FAT_HISTORICO=remote.fatHistorico;
       if(remote.fatBaseInfo) FAT_BASE_INFO=remote.fatBaseInfo;
@@ -1820,6 +2176,9 @@ async function syncPull(){
       if(remote.auditoriaNotasInfo) AUDITORIA_NOTAS_INFO=remote.auditoriaNotasInfo;
       if(remote.observacoes) OBSERVACOES=remote.observacoes;
       if(remote.config) CONFIG=Object.assign(CONFIG, remote.config);
+      if(remote.cronoAuditorias) CRONO_AUDITORIAS=remote.cronoAuditorias;
+      if(remote.cronoArquivoInfo) CRONO_ARQUIVO_INFO=remote.cronoArquivoInfo;
+      if(remote.cronoMeta) CRONO_META=remote.cronoMeta;
       if(remote.arquivos && remote.arquivos.length){
         ARQUIVOS=remote.arquivos;
         processarERenderizar();
@@ -1832,6 +2191,10 @@ async function syncPull(){
         document.getElementById('tela-import').style.display='none';
         document.getElementById('painel').classList.remove('hidden');
         mudarAba(ABA_ATUAL);
+      } else if(temCrono){
+        document.getElementById('tela-import').style.display='none';
+        document.getElementById('painel').classList.remove('hidden');
+        mudarAba(ABA_ATUAL==='anual' ? 'cronograma' : ABA_ATUAL);
       }
       setSyncStatus('ok');
       saveJBinCfg({lastPull:new Date().toLocaleString('pt-BR')});
@@ -1855,6 +2218,7 @@ async function syncPush(){
       registros:REGISTROS, faturamentos:FATURAMENTOS, fatHistorico:FAT_HISTORICO, fatBaseInfo:FAT_BASE_INFO,
       auditoriaNotas:AUDITORIA_NOTAS, auditoriaNotasInfo:AUDITORIA_NOTAS_INFO, observacoes:OBSERVACOES,
       config:CONFIG, arquivos:ARQUIVOS,
+      cronoAuditorias:CRONO_AUDITORIAS, cronoArquivoInfo:CRONO_ARQUIVO_INFO, cronoMeta:CRONO_META,
       lastUpdate:new Date().toISOString(), app:'agroquima-ranking'
     };
     await jbinWrite(binId, masterKey, compactarPayload(payload));
