@@ -119,6 +119,17 @@ body{font-family:var(--fonte);background:var(--bg);color:var(--text);font-size:1
 .rank-table tbody tr.pos2{background:rgba(184,196,208,.04);}
 .rank-table tbody tr.pos3{background:rgba(205,127,50,.04);}
 .rank-table td{padding:10px 12px;font-size:12.5px;vertical-align:middle;}
+.rank-table thead th.sortavel{cursor:pointer;}
+.rank-table thead th.sortavel .sort-ind{margin-left:4px;color:var(--brand);}
+.th-filter-trigger{opacity:0;cursor:pointer;font-size:10.5px;padding:3px 8px;border-radius:5px;transition:opacity .15s,background .15s;white-space:nowrap;}
+.rank-header:hover .th-filter-trigger{opacity:.85;}
+.th-filter-trigger:hover{opacity:1!important;background:rgba(255,255,255,.12);}
+.th-filter-panel{position:fixed;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;z-index:500;min-width:180px;max-height:260px;overflow-y:auto;box-shadow:var(--sh-md);}
+.th-filter-panel label{display:flex;gap:7px;align-items:center;font-size:11.5px;padding:4px;cursor:pointer;white-space:nowrap;border-radius:4px;color:var(--text2);}
+.th-filter-panel label:hover{background:rgba(255,255,255,.06);color:var(--text);}
+.th-filter-panel .tf-actions{display:flex;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);}
+.th-filter-panel .tf-actions button{flex:1;font-size:10.5px;padding:4px 0;border-radius:4px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);cursor:pointer;}
+.th-filter-panel .tf-actions button:hover{color:var(--text);border-color:var(--brand);}
 
 .pos-badge{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;}
 .pos-badge.ouro{background:rgba(242,196,81,.2);color:var(--ouro);border:1px solid rgba(242,196,81,.5);}
@@ -345,6 +356,19 @@ canvas{max-width:100%;}
   </div>
 </div>
 
+<!-- MODAL AGENDA DA SEMANA -->
+<div class="modal-overlay hidden" id="modal-agenda">
+  <div class="modal-box" style="max-width:620px;">
+    <div class="modal-title">📅 Agenda de Auditorias da Semana</div>
+    <div class="modal-sub">Card neutro, pronto para encaminhar no WhatsApp.</div>
+    <div id="agenda-render" style="background:#fff;color:#1a1a1a;padding:24px;border-radius:10px;margin-top:12px;border:1px solid #e4e4e4;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn-modal sec" onclick="fecharModal('modal-agenda')">Fechar</button>
+      <button class="btn-modal primary" onclick="exportarAgendaPNG()">📥 Baixar PNG</button>
+    </div>
+  </div>
+</div>
+
 <!-- CERTIFICADO (oculto, usado para render) -->
 <div style="position:fixed;left:-9999px;top:0;"><div id="cert-render"></div></div>
 
@@ -422,6 +446,11 @@ let CRONO_ARQUIVO_INFO = null;  // {nome, qtdReconhecidas, qtdIgnoradas, importa
 let CRONO_META = 6;             // meta de auditorias por filial no ano
 let CRONO_ANO_SEL = null;       // ano selecionado no filtro da aba
 let chartCronoEvol = null;
+// Filiais que não são auditadas — ficam fora de qualquer cálculo/registro do Cronograma
+const CRONO_FILIAIS_IGNORADAS = ['FAP','GRA','FAG'];
+function _cronoFiliaisValidas() { return Object.keys(BASE_FILIAIS).filter(s=>!CRONO_FILIAIS_IGNORADAS.includes(s)); }
+let CRONO_AUD_OCULTOS = new Set();          // auditores ocultados no filtro da tabela "Progresso por Auditor"
+let _cronoEmAndSort = { col:'dias', dir:-1 }; // estado de ordenação do card "Em Andamento"
 
 // ============================================================
 // ENRIQUECER COM BASE DE FILIAIS
@@ -1494,12 +1523,13 @@ function processarCronogramaArquivo(input) {
     if (idxFilial<0 || idxData<0) {
       alert('Estrutura não reconhecida. Esperado colunas: Filial, Data/Dt Início, Nota (Status é opcional).'); return;
     }
-    const novos=[]; let ignoradas=0;
+    const novos=[]; let ignoradas=0, desconsideradas=0;
     for (let i=1; i<matrix.length; i++) {
       const row=matrix[i]; if (!row||!row[idxFilial]) continue;
       const sigla=_cronoResolveFilial(row[idxFilial]);
       const dt=_cronoParseData(row[idxData]);
       if (!sigla || !dt || isNaN(dt.getTime())) { ignoradas++; continue; }
+      if (CRONO_FILIAIS_IGNORADAS.includes(sigla)) { desconsideradas++; continue; }
       const notaRaw=idxNota>-1 ? parseFloat(String(row[idxNota]).replace(',','.')) : NaN;
       const statusRaw=idxStatus>-1 ? String(row[idxStatus]||'').trim() : 'Finalizada';
       novos.push({
@@ -1515,12 +1545,13 @@ function processarCronogramaArquivo(input) {
     if (!novos.length) { alert('Nenhuma linha válida encontrada (verifique as colunas Filial e Data/Dt Início).'); return; }
     CRONO_AUDITORIAS=novos;
     const qtdAndamento=novos.filter(r=>!_cronoEhFinalizada(r)).length;
-    CRONO_ARQUIVO_INFO={ nome, qtdReconhecidas:novos.length, qtdIgnoradas:ignoradas, qtdAndamento, importadoEm:new Date().toLocaleString('pt-BR') };
+    CRONO_ARQUIVO_INFO={ nome, qtdReconhecidas:novos.length, qtdIgnoradas:ignoradas, qtdDesconsideradas:desconsideradas, qtdAndamento, importadoEm:new Date().toLocaleString('pt-BR') };
     CRONO_ANO_SEL=null;
+    CRONO_AUD_OCULTOS=new Set();
     input.value='';
     if (ABA_ATUAL==='cronograma') renderAbaCronograma();
     if (getBinId() && getMasterKey()) syncPush();
-    alert('Planilha de Cronograma carregada! '+novos.length+' auditoria(s) reconhecida(s)'+(qtdAndamento?(' · '+qtdAndamento+' em andamento (não finalizada)'):'')+(ignoradas?(' · '+ignoradas+' linha(s) ignorada(s)'):'')+'.');
+    alert('Planilha de Cronograma carregada! '+novos.length+' auditoria(s) reconhecida(s)'+(qtdAndamento?(' · '+qtdAndamento+' em andamento (não finalizada)'):'')+(desconsideradas?(' · '+desconsideradas+' linha(s) de filial não auditada (FAP/GRA/FAG) desconsiderada(s)'):'')+(ignoradas?(' · '+ignoradas+' linha(s) ignorada(s)'):'')+'.');
   };
   const lower=nome.toLowerCase();
   if (lower.endsWith('.json')) {
@@ -1589,15 +1620,17 @@ function _cronoEhFinalizada(r) {
 }
 
 function _cronoEmAndamento() {
-  return CRONO_AUDITORIAS.filter(r=>!_cronoEhFinalizada(r)).map(r=>{
+  return CRONO_AUDITORIAS.filter(r=>!_cronoEhFinalizada(r) && !CRONO_FILIAIS_IGNORADAS.includes(r.filial)).map(r=>{
     const info=BASE_FILIAIS[r.filial]||{};
     const dias=Math.floor((new Date()-new Date(r.data+'T00:00:00'))/86400000);
     return Object.assign({}, r, { filialNome:info.loja||r.filial, auditor:info.auditor||'—', dias });
-  }).sort((a,b)=>b.dias-a.dias);
+  });
 }
 
 function consolidarCronograma(ano) {
-  const porFilial=Object.keys(BASE_FILIAIS).map(sigla=>{
+  const fracaoAno=_cronoFracaoAno(ano);
+  const ritmoEsperadoFilial=Math.max(0, Math.round(CRONO_META*fracaoAno));
+  const porFilial=_cronoFiliaisValidas().map(sigla=>{
     const info=BASE_FILIAIS[sigla];
     const regs=CRONO_AUDITORIAS.filter(r=>r.filial===sigla && r.ano===ano && _cronoEhFinalizada(r)).sort((a,b)=>a.data.localeCompare(b.data));
     const qtd=regs.length;
@@ -1608,12 +1641,12 @@ function consolidarCronograma(ano) {
       progresso:Math.min(100, Math.round(qtd/CRONO_META*100)),
       ultima: regs.length ? regs[regs.length-1].dataDisplay : null,
       notaMedia: notas.length ? Math.round(notas.reduce((a,b)=>a+b,0)/notas.length*10)/10 : null,
+      noRitmo: qtd>=ritmoEsperadoFilial,
     };
   });
 
   const porAuditor={};
   porFilial.forEach(f=>{ (porAuditor[f.auditor]=porAuditor[f.auditor]||[]).push(f); });
-  const fracaoAno=_cronoFracaoAno(ano);
   const auditores=Object.entries(porAuditor).map(([auditor,filiais])=>{
     const metaTotal=filiais.length*CRONO_META;
     const realizadas=filiais.reduce((s,f)=>s+f.qtd,0);
@@ -1631,12 +1664,12 @@ function consolidarCronograma(ano) {
     };
   }).sort((a,b)=>b.progresso-a.progresso);
 
-  return { porFilial, auditores, fracaoAno };
+  return { porFilial, auditores, fracaoAno, ritmoEsperadoFilial };
 }
 
 function _cronoCumulativoPorMes(ano) {
   const porMes=new Array(12).fill(0);
-  CRONO_AUDITORIAS.filter(r=>r.ano===ano && _cronoEhFinalizada(r)).forEach(r=>{ porMes[+r.data.slice(5,7)-1]++; });
+  CRONO_AUDITORIAS.filter(r=>r.ano===ano && _cronoEhFinalizada(r) && !CRONO_FILIAIS_IGNORADAS.includes(r.filial)).forEach(r=>{ porMes[+r.data.slice(5,7)-1]++; });
   const cum=[]; let acc=0;
   for (let i=0;i<12;i++) { acc+=porMes[i]; cum.push(acc); }
   return cum;
@@ -1652,7 +1685,8 @@ function renderAbaCronograma() {
   const dados=consolidarCronograma(anoSel);
   const totalFiliais=dados.porFilial.length;
   const filiaisCompletas=dados.porFilial.filter(f=>f.qtd>=CRONO_META).length;
-  const filiaisPendentes=totalFiliais-filiaisCompletas;
+  const filiaisNoRitmo=dados.porFilial.filter(f=>f.noRitmo).length;
+  const filiaisAtrasadas=totalFiliais-filiaisNoRitmo;
   const metaGeral=totalFiliais*CRONO_META;
   const realizadasGeral=dados.porFilial.reduce((s,f)=>s+Math.min(f.qtd,CRONO_META),0);
   const totalAuditoriasAno=dados.porFilial.reduce((s,f)=>s+f.qtd,0);
@@ -1660,63 +1694,60 @@ function renderAbaCronograma() {
   const emAndamento=_cronoEmAndamento();
 
   c.innerHTML = `
-    <div class="info-bar">🗓 <strong>Cronograma & Progresso das Auditorias</strong> — acompanhamento <em>independente do Ranking</em>, baseado somente na planilha importada abaixo (Filial, Data/Dt Início, Status e Nota). Meta: <strong>${CRONO_META} auditorias/ano por filial</strong>. O período considerado é sempre a <strong>data em que a auditoria foi realizada</strong> (não há cronograma fixo — a ordem das visitas é livre/aleatória, e o progresso é medido pelo que já foi efetivamente feito). Apenas auditorias com <strong>Status = Finalizada</strong> contam para a meta — as demais aparecem como alerta abaixo.</div>
+    <div class="info-bar">🗓 <strong>Cronograma & Progresso das Auditorias</strong> — acompanhamento <em>independente do Ranking</em>, baseado somente na planilha importada (Filial, Data/Dt Início, Status e Nota). Meta: <strong>${CRONO_META} auditorias/ano por filial</strong>. As filiais <strong>FAP, GRA e FAG</strong> não são auditadas e ficam fora de qualquer cálculo desta aba. O progresso é medido pelo <strong>ritmo esperado até hoje</strong> (${Math.round(dados.fracaoAno*100)}% do ano ${anoSel} decorrido) — a meta cheia só se completa em dezembro. Apenas auditorias com <strong>Status = Finalizada</strong> contam; as demais aparecem como alerta no fim da página.</div>
 
-    ${emAndamento.length ? `
-    <div class="chart-card" style="border:1px solid var(--red);background:rgba(220,53,69,.07);margin-bottom:20px;">
-      <div class="chart-title" style="color:var(--red-dk);">🔔 ${emAndamento.length} Auditoria(s) Em Andamento — ainda não finalizada(s)</div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">Estas auditorias já foram iniciadas, mas continuam com Status = "Em andamento" na planilha. Elas <strong>não contam</strong> para a meta de ${CRONO_META}/ano até serem finalizadas — peça para o auditor concluir o lançamento no sistema de origem.</p>
-      <div style="overflow-x:auto;">
-        <table class="rank-table">
-          <thead><tr><th>Filial</th><th>Auditor</th><th>Nº Auditoria</th><th>Dt Início</th><th style="text-align:center;">Dias em Andamento</th></tr></thead>
-          <tbody>
-            ${emAndamento.map(r=>`<tr>
-              <td><b>${r.filial}</b> · ${r.filialNome}</td>
-              <td>${r.auditor}</td>
-              <td>${r.numero||'—'}</td>
-              <td>${r.dataDisplay}</td>
-              <td style="text-align:center;font-weight:700;color:${r.dias>30?'var(--red-dk)':r.dias>14?'var(--amber-dk)':'var(--text2)'};">${r.dias} dia(s)${r.dias>30?' ⚠':''}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
+    <input type="file" id="inp-cronograma" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarCronogramaArquivo(this)">
+
+    ${CRONO_ARQUIVO_INFO ? `
+    <div class="chart-card" style="padding:14px 18px;margin-bottom:20px;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <span style="font-size:12px;color:var(--text2);">✔ <strong>${CRONO_ARQUIVO_INFO.nome}</strong> · ${CRONO_ARQUIVO_INFO.qtdReconhecidas} auditoria(s)${CRONO_ARQUIVO_INFO.qtdAndamento?(' · '+CRONO_ARQUIVO_INFO.qtdAndamento+' em andamento'):''}${CRONO_ARQUIVO_INFO.qtdDesconsideradas?(' · '+CRONO_ARQUIVO_INFO.qtdDesconsideradas+' de filial não auditada desconsiderada(s)'):''}${CRONO_ARQUIVO_INFO.qtdIgnoradas?(' · '+CRONO_ARQUIVO_INFO.qtdIgnoradas+' linha(s) ignorada(s)'):''} · importado em ${CRONO_ARQUIVO_INFO.importadoEm}</span>
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          ${anos.length>1 ? `<select class="sel-sm" onchange="CRONO_ANO_SEL=parseInt(this.value);renderAbaCronograma();">${anos.map(a=>`<option value="${a}" ${a===anoSel?'selected':''}>Ano ${a}</option>`).join('')}</select>` : ''}
+          <span style="font-size:12px;color:var(--text2);">Meta/ano:</span>
+          <input id="crono-meta-input" type="number" min="1" max="24" value="${CRONO_META}" style="width:56px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+          <button class="btn-topo" style="padding:6px 10px;font-size:11.5px;" onclick="salvarCronogramaMeta()">Salvar</button>
+          <button class="btn-topo" style="padding:6px 10px;font-size:11.5px;" onclick="triggerCronogramaImport()" title="Substituir a planilha por uma versão atualizada">🔄 Trocar</button>
+          <button class="btn-topo danger" style="padding:6px 10px;font-size:11.5px;" onclick="limparCronograma()">🗑 Limpar</button>
+          <button style="padding:6px 10px;font-size:11px;border-radius:6px;border:1px dashed var(--border2);background:transparent;color:var(--text3);cursor:pointer;" onclick="gerarAgendaSemana()" title="Sugestão de qual filial cada auditor deve visitar na próxima semana">📅 Gerar Agenda</button>
+        </div>
       </div>
-    </div>` : ''}
-
+    </div>` : `
     <div class="chart-card">
       <div class="chart-title">📥 Importar Planilha de Auditoria</div>
       <p style="font-size:12.5px;color:var(--text2);line-height:1.7;margin-bottom:12px;">
-        Envie a planilha (.xlsx ou .json) com as colunas <strong>Filial</strong>, <strong>Data/Dt Início da Auditoria</strong> e <strong>Nota</strong>. A coluna <strong>Status</strong> é opcional, mas se vier preenchida ("Finalizada"/"Em andamento"), as auditorias em andamento aparecem como alerta acima e ficam fora da meta até serem concluídas. Auditor, Regional etc. são preenchidos automaticamente pela base de filiais — não é preciso informá-los.<br>
+        Envie a planilha (.xlsx ou .json) com as colunas <strong>Filial</strong>, <strong>Data/Dt Início da Auditoria</strong> e <strong>Nota</strong>. A coluna <strong>Status</strong> é opcional, mas se vier preenchida ("Finalizada"/"Em andamento"), as auditorias em andamento aparecem como alerta no fim da página e ficam fora da meta até serem concluídas. Auditor, Regional etc. são preenchidos automaticamente pela base de filiais — não é preciso informá-los.<br>
         <span style="color:var(--amber-dk);">Cada novo arquivo substitui a base completa do Cronograma — sempre suba a planilha atualizada e completa, não apenas as novidades.</span>
       </p>
-      <input type="file" id="inp-cronograma" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarCronogramaArquivo(this)">
       <div class="drop-zone" id="crono-drop-zone" style="padding:22px 18px;margin:0 0 12px;max-width:none;" ondrop="onDropCrono(event)" ondragover="onDragOverCrono(event)" ondragleave="onDragLeaveCrono(event)" onclick="triggerCronogramaImport()">
         <div class="dz-icon" style="font-size:28px;margin-bottom:6px;">📂</div>
         <p style="margin:0;">Arraste a planilha aqui ou <strong>clique para selecionar</strong></p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        ${CRONO_ARQUIVO_INFO ? `<button class="btn-topo danger" onclick="limparCronograma()">🗑 Limpar Dados</button>` : ''}
         ${anos.length>1 ? `<select class="sel-sm" onchange="CRONO_ANO_SEL=parseInt(this.value);renderAbaCronograma();">${anos.map(a=>`<option value="${a}" ${a===anoSel?'selected':''}>Ano ${a}</option>`).join('')}</select>` : ''}
         <span style="font-size:12px;color:var(--text2);margin-left:auto;">Meta auditorias/ano por filial:</span>
         <input id="crono-meta-input" type="number" min="1" max="24" value="${CRONO_META}" style="width:64px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
         <button class="btn-topo" style="padding:6px 10px;font-size:11.5px;" onclick="salvarCronogramaMeta()">Salvar</button>
       </div>
-      ${CRONO_ARQUIVO_INFO ? `<div style="margin-top:10px;font-size:11.5px;color:var(--text3);">✔ <strong>${CRONO_ARQUIVO_INFO.nome}</strong> importado em ${CRONO_ARQUIVO_INFO.importadoEm} · ${CRONO_ARQUIVO_INFO.qtdReconhecidas} auditoria(s) reconhecida(s)${CRONO_ARQUIVO_INFO.qtdAndamento?(' · '+CRONO_ARQUIVO_INFO.qtdAndamento+' em andamento'):''}${CRONO_ARQUIVO_INFO.qtdIgnoradas?(' · '+CRONO_ARQUIVO_INFO.qtdIgnoradas+' linha(s) ignorada(s)'):''}</div>` : `<div style="margin-top:10px;font-size:11.5px;color:var(--text3);">Nenhuma planilha de Cronograma importada ainda.</div>`}
-    </div>
+    </div>`}
 
     ${!CRONO_AUDITORIAS.length ? '' : `
     <div class="kpi-grid" style="margin-bottom:20px;">
-      <div class="kpi b"><div class="kl">Progresso Geral ${anoSel}</div><div class="kv">${progressoGeral}%</div><div class="ks">${realizadasGeral}/${metaGeral} auditorias (limitado a ${CRONO_META}/filial)</div></div>
-      <div class="kpi g"><div class="kl">Filiais com Meta Cumprida</div><div class="kv">${filiaisCompletas}/${totalFiliais}</div><div class="ks">${CRONO_META} de ${CRONO_META} auditorias no ano</div></div>
-      <div class="kpi ${filiaisPendentes?'a':'g'}"><div class="kl">Filiais Pendentes</div><div class="kv">${filiaisPendentes}</div><div class="ks">${filiaisPendentes?'ainda não atingiram a meta':'cobertura completa 🎉'}</div></div>
-      <div class="kpi"><div class="kl">Total de Auditorias no Ano</div><div class="kv">${totalAuditoriasAno}</div><div class="ks">finalizadas em ${anoSel}</div></div>
-      <div class="kpi ${emAndamento.length?'a':'g'}"><div class="kl">🔔 Em Andamento</div><div class="kv">${emAndamento.length}</div><div class="ks">${emAndamento.length?'aguardando finalização':'nenhuma pendência'}</div></div>
+      <div class="kpi b"><div class="kl">Progresso Geral ${anoSel}</div><div class="kv">${progressoGeral}%</div><div class="ks">${realizadasGeral}/${metaGeral} auditorias (limite ${CRONO_META}/filial)</div></div>
+      <div class="kpi ${filiaisAtrasadas===0?'g':'a'}"><div class="kl">Filiais no Ritmo</div><div class="kv">${filiaisNoRitmo}/${totalFiliais}</div><div class="ks">${dados.ritmoEsperadoFilial} auditoria(s) esperada(s) até hoje · ${filiaisCompletas} já cumpriram as ${CRONO_META} no ano</div></div>
+      <div class="kpi ${filiaisAtrasadas?'r':'g'}"><div class="kl">Filiais Atrasadas</div><div class="kv">${filiaisAtrasadas}</div><div class="ks">${filiaisAtrasadas?'abaixo do ritmo esperado — priorize na agenda':'nenhuma — todas em dia 🎉'}</div></div>
+      <div class="kpi"><div class="kl">Auditorias Finalizadas</div><div class="kv">${totalAuditoriasAno}</div><div class="ks">no ano ${anoSel}</div></div>
+      <div class="kpi ${emAndamento.length?'a':'g'}"><div class="kl">🔔 Em Andamento</div><div class="kv">${emAndamento.length}</div><div class="ks">${emAndamento.length?'aguardando finalização — veja no fim da página':'nenhuma pendência'}</div></div>
     </div>
 
     <div class="chart-card"><div class="chart-title">📈 Evolução das Auditorias Finalizadas — ${anoSel}</div><canvas id="canvas-crono-evol" height="100"></canvas></div>
 
     <div class="secao"><div class="secao-titulo">Progresso por Auditor</div>
       <div class="rank-wrap">
-        <div class="rank-header"><span>Cronograma por Auditor — ${anoSel}</span></div>
+        <div class="rank-header">
+          <span>Cronograma por Auditor — ${anoSel}</span>
+          <span class="th-filter-trigger" onclick="_cronoAbrirFiltroAuditor(event)" title="Filtrar auditores exibidos">🔽 Filtrar</span>
+        </div>
         <div style="overflow-x:auto;">
           <table class="rank-table">
             <thead><tr>
@@ -1727,12 +1758,12 @@ function renderAbaCronograma() {
               <th>Projeção até Dez/${anoSel}</th>
               <th>Pendências (o que ainda falta)</th>
             </tr></thead>
-            <tbody>
+            <tbody id="body-crono-auditores">
               ${dados.auditores.map(a=>{
                 const pendChips = a.pendentes.length
                   ? a.pendentes.map(f=>`<span class="cob-chip cob-falta" title="${f.filialNome} · última auditoria: ${f.ultima||'nunca auditada neste ano'}">${f.filial} · faltam ${f.faltam}</span>`).join(' ')
                   : '<span class="cob-chip cob-ok">Meta cumprida em todas ✔</span>';
-                return `<tr>
+                return `<tr data-auditor="${a.auditor}" ${CRONO_AUD_OCULTOS.has(a.auditor)?'style="display:none;"':''}>
                   <td><b>${a.auditor}</b></td>
                   <td style="text-align:center;">${a.totalFiliais}</td>
                   <td style="text-align:center;font-weight:600;">${a.realizadasCapped}<span style="color:var(--text3);font-weight:400;">/${a.metaTotal}</span></td>
@@ -1772,11 +1803,40 @@ function renderAbaCronograma() {
           </table>
         </div>
       </div>
-    </div>`}`;
+    </div>
+
+    ${emAndamento.length ? `
+    <div class="chart-card" style="border:1px solid var(--red);background:rgba(220,53,69,.07);margin-top:20px;">
+      <div class="chart-title" style="color:var(--red-dk);">🔔 ${emAndamento.length} Auditoria(s) Em Andamento — ainda não finalizada(s)</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">Estas auditorias já foram iniciadas, mas continuam com Status = "Em andamento" na planilha. Elas <strong>não contam</strong> para a meta de ${CRONO_META}/ano até serem finalizadas — peça para o auditor concluir o lançamento no sistema de origem. Clique nos títulos das colunas para ordenar.</p>
+      <div style="overflow-x:auto;">
+        <table class="rank-table" id="tabela-crono-andamento">
+          <thead><tr>
+            <th class="sortavel" data-col="filial" onclick="_cronoSortEmAndamento('filial')">Filial</th>
+            <th class="sortavel" data-col="auditor" onclick="_cronoSortEmAndamento('auditor')">Auditor</th>
+            <th class="sortavel" data-col="numero" onclick="_cronoSortEmAndamento('numero')">Nº Auditoria</th>
+            <th class="sortavel" data-col="data" onclick="_cronoSortEmAndamento('data')">Dt Início</th>
+            <th class="sortavel" data-col="dias" style="text-align:center;" onclick="_cronoSortEmAndamento('dias')">Dias em Andamento</th>
+          </tr></thead>
+          <tbody id="body-crono-andamento"></tbody>
+        </table>
+      </div>
+    </div>` : ''}
+
+    <div class="th-filter-panel hidden" id="crono-aud-filtro-panel" onclick="event.stopPropagation();">
+      ${dados.auditores.map(a=>`<label><input type="checkbox" ${CRONO_AUD_OCULTOS.has(a.auditor)?'':'checked'} onchange="_cronoToggleFiltroAuditor('${a.auditor}', this.checked)"> ${a.auditor}</label>`).join('')}
+      <div class="tf-actions">
+        <button onclick="_cronoFiltroAuditorTodos(true)">Mostrar todos</button>
+        <button onclick="_cronoFiltroAuditorTodos(false)">Ocultar todos</button>
+      </div>
+    </div>
+    `}`;
 
   if (!CRONO_AUDITORIAS.length) return;
   window._cronoDadosFilial = dados.porFilial;
+  window._cronoEmAndamentoLista = emAndamento;
   renderTabelaCronograma();
+  renderTabelaEmAndamento();
   setTimeout(()=>{
     const ctx=document.getElementById('canvas-crono-evol');
     if (!ctx) return;
@@ -1792,6 +1852,128 @@ function renderAbaCronograma() {
     ]}, options:{responsive:true, plugins:{legend:{labels:{color:'#8ba2c2',font:{size:10},boxWidth:12}}},
       scales:{y:{beginAtZero:true,grid:{color:'#1a2c47'},ticks:{color:'#54667f'}},x:{grid:{color:'#1a2c47'},ticks:{color:'#54667f'}}}}});
   },50);
+}
+
+function renderTabelaEmAndamento() {
+  const body=document.getElementById('body-crono-andamento');
+  if (!body) return;
+  const {col,dir}=_cronoEmAndSort;
+  const lista=[...(window._cronoEmAndamentoLista||[])].sort((a,b)=>{
+    if (col==='dias') return (a.dias-b.dias)*dir;
+    return String(a[col]||'').localeCompare(String(b[col]||''),'pt-BR',{numeric:true,sensitivity:'base'})*dir;
+  });
+  body.innerHTML = lista.map(r=>`<tr>
+    <td><b>${r.filial}</b> · ${r.filialNome}</td>
+    <td>${r.auditor}</td>
+    <td>${r.numero||'—'}</td>
+    <td>${r.dataDisplay}</td>
+    <td style="text-align:center;font-weight:700;color:${r.dias>30?'var(--red-dk)':r.dias>14?'var(--amber-dk)':'var(--text2)'};">${r.dias} dia(s)${r.dias>30?' ⚠':''}</td>
+  </tr>`).join('');
+  document.querySelectorAll('#tabela-crono-andamento th[data-col]').forEach(th=>{
+    const ind=th.querySelector('.sort-ind'); if (ind) ind.remove();
+    if (th.dataset.col===col) th.insertAdjacentHTML('beforeend', `<span class="sort-ind">${dir>0?'▲':'▼'}</span>`);
+  });
+}
+
+function _cronoSortEmAndamento(col) {
+  if (_cronoEmAndSort.col===col) _cronoEmAndSort.dir*=-1; else _cronoEmAndSort={col,dir:1};
+  renderTabelaEmAndamento();
+}
+
+function _cronoAbrirFiltroAuditor(e) {
+  e.stopPropagation();
+  const panel=document.getElementById('crono-aud-filtro-panel');
+  if (!panel) return;
+  const r=e.currentTarget.getBoundingClientRect();
+  panel.style.top=(r.bottom+6)+'px';
+  panel.style.right=Math.max(8, window.innerWidth-r.right)+'px';
+  panel.classList.toggle('hidden');
+}
+
+function _cronoToggleFiltroAuditor(nome, visivel) {
+  if (visivel) CRONO_AUD_OCULTOS.delete(nome); else CRONO_AUD_OCULTOS.add(nome);
+  document.querySelectorAll('#body-crono-auditores tr').forEach(tr=>{
+    if (tr.dataset.auditor===nome) tr.style.display = visivel ? '' : 'none';
+  });
+}
+
+function _cronoFiltroAuditorTodos(mostrarTodos) {
+  document.querySelectorAll('#crono-aud-filtro-panel input[type=checkbox]').forEach(cb=>{ cb.checked=mostrarTodos; });
+  document.querySelectorAll('#body-crono-auditores tr').forEach(tr=>{
+    if (mostrarTodos) CRONO_AUD_OCULTOS.delete(tr.dataset.auditor); else CRONO_AUD_OCULTOS.add(tr.dataset.auditor);
+    tr.style.display = mostrarTodos ? '' : 'none';
+  });
+}
+
+document.addEventListener('click', ()=>{
+  const p=document.getElementById('crono-aud-filtro-panel');
+  if (p && !p.classList.contains('hidden')) p.classList.add('hidden');
+});
+
+function _cronoProximaSegunda(base) {
+  const d=new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  const dow=d.getDay();
+  d.setDate(d.getDate() + (dow===1 ? 0 : (8-dow)%7));
+  return d;
+}
+
+function gerarAgendaSemana() {
+  const hoje=new Date();
+  const segunda=_cronoProximaSegunda(hoje);
+  const sabado=new Date(segunda); sabado.setDate(segunda.getDate()+5);
+  const fmt=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+  const dados=consolidarCronograma(hoje.getFullYear());
+
+  const itens=[], semPendencia=[];
+  dados.auditores.forEach(a=>{
+    if (!a.pendentes.length) { semPendencia.push(a.auditor); return; }
+    const escolhida=a.pendentes.map(f=>{
+      const dias = f.ultima ? Math.floor((hoje-new Date(f.ultima.split('/').reverse().join('-')+'T00:00:00'))/86400000) : Infinity;
+      return Object.assign({}, f, {diasSemAuditoria:dias});
+    }).sort((x,y)=>y.diasSemAuditoria-x.diasSemAuditoria)[0];
+    itens.push({ auditor:a.auditor, filial:escolhida.filial, filialNome:escolhida.filialNome, ultima:escolhida.ultima, diasSemAuditoria:escolhida.diasSemAuditoria });
+  });
+  itens.sort((a,b)=>a.auditor.localeCompare(b.auditor,'pt-BR'));
+
+  const logoSrc = document.getElementById('logo-header-img') ? document.getElementById('logo-header-img').src : '';
+  document.getElementById('agenda-render').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+      ${logoSrc?`<img src="${logoSrc}" style="width:38px;height:38px;object-fit:cover;border-radius:8px;">`:''}
+      <div>
+        <div style="font-size:10.5px;letter-spacing:2px;color:#888;text-transform:uppercase;">Auditoria Interna</div>
+        <div style="font-size:18px;font-weight:700;color:#1a1a1a;">Agenda de Auditorias — Próxima Semana</div>
+      </div>
+    </div>
+    <div style="font-size:12.5px;color:#555;margin-bottom:16px;">Semana de <strong>${fmt(segunda)}</strong> a <strong>${fmt(sabado)}</strong></div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+      <thead><tr style="border-bottom:2px solid #ccc;text-align:left;">
+        <th style="padding:7px 6px;color:#333;">Auditor</th>
+        <th style="padding:7px 6px;color:#333;">Filial Sugerida</th>
+        <th style="padding:7px 6px;color:#333;">Última Auditoria</th>
+      </tr></thead>
+      <tbody>
+        ${itens.map(i=>`<tr style="border-bottom:1px solid #e4e4e4;">
+          <td style="padding:7px 6px;font-weight:600;color:#1a1a1a;">${i.auditor}</td>
+          <td style="padding:7px 6px;color:#1a1a1a;"><strong>${i.filial}</strong> · ${i.filialNome}</td>
+          <td style="padding:7px 6px;color:#666;">${i.ultima ? i.ultima+' ('+i.diasSemAuditoria+' dias)' : 'nunca auditada'}</td>
+        </tr>`).join('') || `<tr><td colspan="3" style="padding:10px 6px;color:#888;">Todos os auditores já cumpriram a meta do ano 🎉</td></tr>`}
+      </tbody>
+    </table>
+    ${semPendencia.length ? `<div style="margin-top:12px;font-size:11px;color:#888;">✔ Já cumpriram a meta do ano: ${semPendencia.join(', ')}</div>` : ''}
+    <div style="margin-top:16px;font-size:10px;color:#aaa;text-align:right;">Gerado em ${fmt(hoje)}</div>
+  `;
+  document.getElementById('modal-agenda').classList.remove('hidden');
+}
+
+function exportarAgendaPNG() {
+  const el=document.getElementById('agenda-render');
+  if (!el) return;
+  html2canvas(el, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
+    const a=document.createElement('a');
+    a.href=canvas.toDataURL('image/png');
+    a.download=`Agenda_Auditorias_${new Date().toLocaleDateString('pt-BR').split('/').join('-')}.png`;
+    a.click();
+  });
 }
 
 function renderTabelaCronograma() {
