@@ -101,6 +101,8 @@ body{font-family:var(--fonte);background:var(--bg);color:var(--text);font-size:1
 .kpi.a{border-top-color:var(--amber);} .kpi.a .kv{color:var(--amber-dk);}
 .kpi.r{border-top-color:var(--red);} .kpi.r .kv{color:var(--red-dk);}
 .kpi.b{border-top-color:var(--brand);} .kpi.b .kv{color:var(--brand-dk);}
+.kpi.clicavel{cursor:pointer;transition:transform .12s,box-shadow .12s;}
+.kpi.clicavel:hover{transform:translateY(-2px);box-shadow:var(--sh-md);}
 .kl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:8px;}
 .kv{font-size:23px;font-weight:800;letter-spacing:-.5px;}
 .ks{font-size:11px;color:var(--text2);margin-top:5px;}
@@ -365,6 +367,17 @@ canvas{max-width:100%;}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
       <button class="btn-modal sec" onclick="fecharModal('modal-agenda')">Fechar</button>
       <button class="btn-modal primary" onclick="exportarAgendaPNG()">📥 Baixar PNG</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALHE DE KPI (Cronograma) -->
+<div class="modal-overlay hidden" id="modal-kpi-detalhe">
+  <div class="modal-box" style="max-width:640px;">
+    <div class="modal-title" id="kpi-detalhe-titulo">Detalhe</div>
+    <div id="kpi-detalhe-body" style="max-height:480px;overflow:auto;margin-top:12px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn-modal primary" onclick="fecharModal('modal-kpi-detalhe')">Fechar</button>
     </div>
   </div>
 </div>
@@ -1734,10 +1747,10 @@ function renderAbaCronograma() {
     ${!CRONO_AUDITORIAS.length ? '' : `
     <div class="kpi-grid" style="margin-bottom:20px;">
       <div class="kpi b"><div class="kl">Progresso Geral ${anoSel}</div><div class="kv">${progressoGeral}%</div><div class="ks">${realizadasGeral}/${metaGeral} auditorias (limite ${CRONO_META}/filial)</div></div>
-      <div class="kpi ${filiaisAtrasadas===0?'g':'a'}"><div class="kl">Filiais no Ritmo</div><div class="kv">${filiaisNoRitmo}/${totalFiliais}</div><div class="ks">${dados.ritmoEsperadoFilial} auditoria(s) esperada(s) até hoje · ${filiaisCompletas} já cumpriram as ${CRONO_META} no ano</div></div>
-      <div class="kpi ${filiaisAtrasadas?'r':'g'}"><div class="kl">Filiais Atrasadas</div><div class="kv">${filiaisAtrasadas}</div><div class="ks">${filiaisAtrasadas?'abaixo do ritmo esperado — priorize na agenda':'nenhuma — todas em dia 🎉'}</div></div>
+      <div class="kpi clicavel ${filiaisAtrasadas===0?'g':'a'}" onclick="_cronoAbrirDetalheKpi('ritmo')" title="Clique para ver a lista de filiais"><div class="kl">Filiais no Ritmo</div><div class="kv">${filiaisNoRitmo}/${totalFiliais}</div><div class="ks">${dados.ritmoEsperadoFilial} auditoria(s) esperada(s) até hoje · ${filiaisCompletas} já cumpriram as ${CRONO_META} no ano</div></div>
+      <div class="kpi clicavel ${filiaisAtrasadas?'r':'g'}" onclick="_cronoAbrirDetalheKpi('atrasadas')" title="Clique para ver a lista de filiais"><div class="kl">Filiais Atrasadas</div><div class="kv">${filiaisAtrasadas}</div><div class="ks">${filiaisAtrasadas?'abaixo do ritmo esperado — priorize na agenda':'nenhuma — todas em dia 🎉'}</div></div>
       <div class="kpi"><div class="kl">Auditorias Finalizadas</div><div class="kv">${totalAuditoriasAno}</div><div class="ks">no ano ${anoSel}</div></div>
-      <div class="kpi ${emAndamento.length?'a':'g'}"><div class="kl">🔔 Em Andamento</div><div class="kv">${emAndamento.length}</div><div class="ks">${emAndamento.length?'aguardando finalização — veja no fim da página':'nenhuma pendência'}</div></div>
+      <div class="kpi clicavel ${emAndamento.length?'a':'g'}" onclick="_cronoAbrirDetalheKpi('andamento')" title="Clique para ver a lista"><div class="kl">🔔 Em Andamento</div><div class="kv">${emAndamento.length}</div><div class="ks">${emAndamento.length?'aguardando finalização':'nenhuma pendência'}</div></div>
     </div>
 
     <div class="chart-card"><div class="chart-title">📈 Evolução das Auditorias Finalizadas — ${anoSel}</div><canvas id="canvas-crono-evol" height="100"></canvas></div>
@@ -1974,6 +1987,30 @@ function exportarAgendaPNG() {
     a.download=`Agenda_Auditorias_${new Date().toLocaleDateString('pt-BR').split('/').join('-')}.png`;
     a.click();
   });
+}
+
+function _cronoAbrirDetalheKpi(tipo) {
+  const titulo=document.getElementById('kpi-detalhe-titulo');
+  const body=document.getElementById('kpi-detalhe-body');
+  if (!titulo || !body) return;
+  let tituloTxt='', theadHtml='', linhasHtml='';
+  if (tipo==='ritmo' || tipo==='atrasadas') {
+    const filiais=(window._cronoDadosFilial||[]).filter(f=> tipo==='ritmo' ? f.noRitmo : !f.noRitmo)
+      .sort((a,b)=> tipo==='ritmo' ? b.qtd-a.qtd : a.qtd-b.qtd);
+    tituloTxt = tipo==='ritmo' ? `✔ ${filiais.length} Filial(is) no Ritmo Esperado` : `⚠ ${filiais.length} Filial(is) Atrasada(s)`;
+    theadHtml = `<tr><th>Filial</th><th>Auditor</th><th style="text-align:center;">Auditorias no Ano</th><th>Última Auditoria</th></tr>`;
+    linhasHtml = filiais.map(f=>`<tr><td><b>${f.filial}</b> · ${f.filialNome}</td><td>${f.auditor}</td><td style="text-align:center;">${f.qtd}/${f.meta}</td><td>${f.ultima||'nunca auditada'}</td></tr>`).join('')
+      || `<tr><td colspan="4" style="color:var(--text3);padding:14px 6px;">Nenhuma filial nesta condição.</td></tr>`;
+  } else {
+    const lista=[...(window._cronoEmAndamentoLista||[])].sort((a,b)=>b.dias-a.dias);
+    tituloTxt = `🔔 ${lista.length} Auditoria(s) em Andamento`;
+    theadHtml = `<tr><th>Filial</th><th>Auditor</th><th>Dt Início</th><th style="text-align:center;">Dias em Andamento</th></tr>`;
+    linhasHtml = lista.map(r=>`<tr><td><b>${r.filial}</b> · ${r.filialNome}</td><td>${r.auditor}</td><td>${r.dataDisplay}</td><td style="text-align:center;">${r.dias} dia(s)</td></tr>`).join('')
+      || `<tr><td colspan="4" style="color:var(--text3);padding:14px 6px;">Nenhuma auditoria em andamento.</td></tr>`;
+  }
+  titulo.textContent = tituloTxt;
+  body.innerHTML = `<table class="rank-table"><thead>${theadHtml}</thead><tbody>${linhasHtml}</tbody></table>`;
+  document.getElementById('modal-kpi-detalhe').classList.remove('hidden');
 }
 
 function renderTabelaCronograma() {
