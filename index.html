@@ -446,7 +446,8 @@ let AUDITORIA_NOTAS_INFO = null; // { arquivo, geradoEm, periodoIniDisplay, peri
 let FAT_ACUM = {};        // { sigla: {valor, chaves:Set, periodoInicio, periodoFim, importadoEm, linhas} }
 let OBSERVACOES = {};     // { chave: texto }
 let REGISTROS = [];       // todos os registros período a período (mesclados)
-let CONFIG = { dataPremio:'', ano: new Date().getFullYear(), tetoBonus: 5, totalRodadas: 4 };
+let CONFIG = { dataPremio:'', ano: new Date().getFullYear(), tetoBonus: 5, totalRodadas: 4, rodadasConfianca: 2 };
+function _rodadasFilial(sigla) { return _ehFilialConfianca(sigla) ? (CONFIG.rodadasConfianca||2) : (CONFIG.totalRodadas||4); }
 let ABA_ATUAL = 'anual';
 let SORT_STATE = { col:'scoreFinal', asc:false };
 let chartEvol = null;
@@ -457,10 +458,15 @@ let chartEvol = null;
 let CRONO_AUDITORIAS = [];      // [{filial, data:'YYYY-MM-DD', dataDisplay, ano, nota}]
 let CRONO_ARQUIVO_INFO = null;  // {nome, qtdReconhecidas, qtdIgnoradas, importadoEm}
 let CRONO_META = 6;             // meta de auditorias por filial no ano
+let CRONO_META_CONFIANCA = 4;   // meta reduzida para filiais de confiança da diretoria
 let CRONO_ANO_SEL = null;       // ano selecionado no filtro da aba
 let chartCronoEvol = null;
 // Filiais que não são auditadas — ficam fora de qualquer cálculo/registro do Cronograma
 const CRONO_FILIAIS_IGNORADAS = ['FAP','GRA','FAG'];
+// Filiais de confiança da diretoria — meta de auditoria reduzida (Cristalina, Jataí, Uberlândia, Cuiabá)
+const FILIAIS_CONFIANCA = ['CRI','JAT','UBR','FCB'];
+function _ehFilialConfianca(sigla) { return FILIAIS_CONFIANCA.includes(sigla); }
+function _cronoMetaFilial(sigla) { return _ehFilialConfianca(sigla) ? CRONO_META_CONFIANCA : CRONO_META; }
 function _cronoFiliaisValidas() { return Object.keys(BASE_FILIAIS).filter(s=>!CRONO_FILIAIS_IGNORADAS.includes(s)); }
 let CRONO_AUD_OCULTOS = new Set();          // auditores ocultados no filtro da tabela "Progresso por Auditor"
 let _cronoEmAndSort = { col:'dias', dir:-1 }; // estado de ordenação do card "Em Andamento"
@@ -1160,12 +1166,12 @@ function renderTabelaAnual() {
     const pos=i+1, posCls=pos===1?'ouro':pos===2?'prata':pos===3?'bronze':'normal';
     return `<tr class="${pos<=3?'pos'+pos:''}">
       <td style="text-align:center;"><div class="pos-badge ${posCls}">${pos}</div></td>
-      <td><b>${r.filial}</b> ${r.reincidente?'<span class="selo selo-reinc">REINC</span>':''}${r.velho?'<span class="selo selo-velho">12M+</span>':''}${r.notaAuditoria!=null?`<span class="selo" style="background:var(--ouro,#caa43d);color:#fff;" title="Nota Média de Auditoria: ${r.notaAuditoria} (${r.notaAuditoriaQtd} auditorias finalizadas)">🏆 ${r.notaAuditoria}</span>`:''}<br><span style="font-size:11px;color:var(--text3)">${r.filialNome}</span></td>
+      <td><b>${r.filial}</b> ${r.reincidente?'<span class="selo selo-reinc">REINC</span>':''}${r.velho?'<span class="selo selo-velho">12M+</span>':''}${r.notaAuditoria!=null?`<span class="selo" style="background:var(--ouro,#caa43d);color:#fff;" title="Nota Média de Auditoria: ${r.notaAuditoria} (${r.notaAuditoriaQtd} auditorias finalizadas)">🏆 ${r.notaAuditoria}</span>`:''}${_ehFilialConfianca(r.filial)?'<span title="Filial de confiança da diretoria — meta de rodadas reduzida">🤝</span>':''}<br><span style="font-size:11px;color:var(--text3)">${r.filialNome}</span></td>
       <td style="font-size:12px;color:var(--text2);font-weight:600;">${r.supervisor||'—'}</td>
       <td style="font-size:12px;color:var(--text2)">${r.regional}</td>
       <td style="font-size:12px;color:var(--text2)">${r.auditor}</td>
       <td style="text-align:center;"><span class="score-pill ${scClass(r.mediaScore)}">${r.mediaScore}</span><div class="bar-wrap"><div class="bar-fill" style="width:${r.mediaScore}%;background:${barColor(r.mediaScore)}"></div></div></td>
-      <td style="text-align:center;">${r.auditorias}<span style="color:var(--text3);font-size:10px;">/${CONFIG.totalRodadas||4}</span></td>
+      <td style="text-align:center;">${r.auditorias}<span style="color:var(--text3);font-size:10px;">/${_rodadasFilial(r.filial)}</span></td>
       <td style="text-align:center;"><span class="comp-val ${regCor[r.regularidade]}">${r.regularidade}</span><br><span style="font-size:9px;color:var(--text3)">σ ${r.desvio}</span></td>
       <td style="text-align:center;color:var(--green-dk)">${r.maxScore}</td>
       <td style="text-align:center;color:${r.minScore<60?'var(--red-dk)':'var(--text2)'}">${r.minScore}</td>
@@ -1197,11 +1203,10 @@ function consolidarPorAuditor(registros) {
     map[aud].filiais.add(r.filial);
     map[aud].regs.push(r);
   });
-  const totalRod = CONFIG.totalRodadas || 4;
   return Object.values(map).map(({ auditor, filiais, regs }) => {
     const scores = regs.map(r => r.scoreFinal);
     const media = scores.reduce((a,b) => a+b, 0) / (scores.length || 1);
-    const totalEsperado = filiais.size * totalRod;
+    const totalEsperado = [...filiais].reduce((s,f) => s + _rodadasFilial(f), 0);
     const porFilial = {};
     regs.forEach(r => { (porFilial[r.filial] = porFilial[r.filial]||[]).push(r); });
     const mediasPorFilial = Object.entries(porFilial).map(([f, fr]) => ({
@@ -1209,6 +1214,8 @@ function consolidarPorAuditor(registros) {
       filialNome: fr[0].filialNome || f,
       mediaScore: Math.round(fr.reduce((a,x) => a+x.scoreFinal,0)/fr.length * 10)/10,
       rodadas: fr.length,
+      rodadasMeta: _rodadasFilial(f),
+      confianca: _ehFilialConfianca(f),
     })).sort((a,b) => b.mediaScore - a.mediaScore);
     return {
       auditor,
@@ -1235,7 +1242,7 @@ function renderAbaAuditor() {
   const coresFundo = ['rgba(242,196,81,.1)','rgba(184,196,208,.07)','rgba(205,127,50,.07)'];
   const coresTxt = ['var(--ouro)','var(--prata)','var(--bronze)'];
   c.innerHTML = `
-    <div class="info-bar">👤 <strong>Ranking Individual por Auditor</strong> — média das filiais de cada auditor ao longo das ${totalRod} rodadas previstas. Auditores são comparados pelo score médio — a quantidade de filiais não interfere no resultado final.</div>
+    <div class="info-bar">👤 <strong>Ranking Individual por Auditor</strong> — média das filiais de cada auditor ao longo das ${totalRod} rodadas previstas (${CONFIG.rodadasConfianca||2} para as filiais de confiança da diretoria: Cristalina, Jataí, Uberlândia e Cuiabá). Auditores são comparados pelo score médio — a quantidade de filiais não interfere no resultado final.</div>
 
     <div class="secao"><div class="secao-titulo">Pódio dos Auditores</div>
       <div class="premio-grid">
@@ -1269,7 +1276,7 @@ function renderAbaAuditor() {
               const pos=i+1, posCls=pos===1?'ouro':pos===2?'prata':pos===3?'bronze':'normal';
               const barW = a.progresso;
               const detalhes = a.mediasPorFilial.map(f =>
-                `<span class="cob-chip ${f.mediaScore>=70?'cob-ok':'cob-falta'}" style="font-size:10px;padding:2px 7px;" title="${f.filialNome}">${f.filial} · ${f.mediaScore}pts · ${f.rodadas}/${totalRod}rds</span>`
+                `<span class="cob-chip ${f.mediaScore>=70?'cob-ok':'cob-falta'}" style="font-size:10px;padding:2px 7px;" title="${f.filialNome}${f.confianca?' · filial de confiança':''}">${f.confianca?'🤝 ':''}${f.filial} · ${f.mediaScore}pts · ${f.rodadas}/${f.rodadasMeta}rds</span>`
               ).join(' ');
               return `<tr class="${pos<=3?'pos'+pos:''}">
                 <td style="text-align:center;"><div class="pos-badge ${posCls}">${pos}</div></td>
@@ -1291,7 +1298,7 @@ function renderAbaAuditor() {
       </div>
     </div>
     <div style="font-size:11px;color:var(--text3);margin-top:10px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;">
-      <strong>Como funciona:</strong> Score do auditor = média simples de <em>todas</em> as auditorias realizadas nas suas filiais, incluindo todas as rodadas. O critério é justo pois cada auditor é avaliado pelas suas próprias filiais ao longo das ${totalRod} rodadas.
+      <strong>Como funciona:</strong> Score do auditor = média simples de <em>todas</em> as auditorias realizadas nas suas filiais, incluindo todas as rodadas. O critério é justo pois cada auditor é avaliado pelas suas próprias filiais ao longo das ${totalRod} rodadas (🤝 ${CONFIG.rodadasConfianca||2} para Cristalina, Jataí, Uberlândia e Cuiabá).
       Ajuste o número de rodadas previstas nas <strong>⚙ Configurações</strong>.
     </div>`;
 }
@@ -1604,6 +1611,8 @@ function salvarCronogramaMeta() {
   const v=parseInt(document.getElementById('crono-meta-input').value);
   if (!v || v<1) { alert('Informe um número válido de auditorias/ano.'); return; }
   CRONO_META=v;
+  const vc=parseInt(document.getElementById('crono-meta-confianca-input')?.value);
+  if (vc && vc>=1) CRONO_META_CONFIANCA=vc;
   renderAbaCronograma();
   if (getBinId() && getMasterKey()) syncPush();
 }
@@ -1644,30 +1653,34 @@ function _cronoEmAndamento() {
 function consolidarCronograma(ano) {
   const fracaoAno=_cronoFracaoAno(ano);
   const ritmoEsperadoFilial=Math.max(0, Math.round(CRONO_META*fracaoAno));
+  const ritmoEsperadoFilialConfianca=Math.max(0, Math.round(CRONO_META_CONFIANCA*fracaoAno));
   const porFilial=_cronoFiliaisValidas().map(sigla=>{
     const info=BASE_FILIAIS[sigla];
     const regs=CRONO_AUDITORIAS.filter(r=>r.filial===sigla && r.ano===ano && _cronoEhFinalizada(r)).sort((a,b)=>a.data.localeCompare(b.data));
     const qtd=regs.length;
+    const meta=_cronoMetaFilial(sigla);
+    const confianca=_ehFilialConfianca(sigla);
+    const ritmoEsperado=confianca?ritmoEsperadoFilialConfianca:ritmoEsperadoFilial;
     const notas=regs.filter(r=>r.nota!=null).map(r=>r.nota);
     const ultimaReg=regs.length ? regs[regs.length-1] : null;
     return {
       filial:sigla, filialNome:info.loja, numero:info.filial, auditor:info.auditor||'—', regional:info.regional||'—',
-      qtd, meta:CRONO_META, faltam:Math.max(0,CRONO_META-qtd),
-      progresso:Math.min(100, Math.round(qtd/CRONO_META*100)),
+      qtd, meta, confianca, faltam:Math.max(0,meta-qtd),
+      progresso:Math.min(100, Math.round(qtd/meta*100)),
       ultima: ultimaReg ? ultimaReg.dataDisplay : null,
       ultimaISO: ultimaReg ? ultimaReg.data : null,
       diasUltima: ultimaReg ? Math.floor((new Date()-new Date(ultimaReg.data+'T00:00:00'))/86400000) : null,
       notaMedia: notas.length ? Math.round(notas.reduce((a,b)=>a+b,0)/notas.length*10)/10 : null,
-      noRitmo: qtd>=ritmoEsperadoFilial,
+      noRitmo: qtd>=ritmoEsperado,
     };
   });
 
   const porAuditor={};
   porFilial.forEach(f=>{ (porAuditor[f.auditor]=porAuditor[f.auditor]||[]).push(f); });
   const auditores=Object.entries(porAuditor).map(([auditor,filiais])=>{
-    const metaTotal=filiais.length*CRONO_META;
+    const metaTotal=filiais.reduce((s,f)=>s+f.meta,0);
     const realizadas=filiais.reduce((s,f)=>s+f.qtd,0);
-    const realizadasCapped=filiais.reduce((s,f)=>s+Math.min(f.qtd,CRONO_META),0);
+    const realizadasCapped=filiais.reduce((s,f)=>s+Math.min(f.qtd,f.meta),0);
     const progresso=Math.round(realizadasCapped/Math.max(metaTotal,1)*100);
     const pendentes=filiais.filter(f=>f.faltam>0).sort((x,y)=>x.qtd-y.qtd);
     const ritmoEsperado=Math.round(metaTotal*fracaoAno);
@@ -1681,7 +1694,7 @@ function consolidarCronograma(ano) {
     };
   }).sort((a,b)=>b.progresso-a.progresso);
 
-  return { porFilial, auditores, fracaoAno, ritmoEsperadoFilial };
+  return { porFilial, auditores, fracaoAno, ritmoEsperadoFilial, ritmoEsperadoFilialConfianca };
 }
 
 function _cronoCumulativoPorMes(ano) {
@@ -1701,17 +1714,17 @@ function renderAbaCronograma() {
   const anoSel=CRONO_ANO_SEL;
   const dados=consolidarCronograma(anoSel);
   const totalFiliais=dados.porFilial.length;
-  const filiaisCompletas=dados.porFilial.filter(f=>f.qtd>=CRONO_META).length;
+  const filiaisCompletas=dados.porFilial.filter(f=>f.qtd>=f.meta).length;
   const filiaisNoRitmo=dados.porFilial.filter(f=>f.noRitmo).length;
   const filiaisAtrasadas=totalFiliais-filiaisNoRitmo;
-  const metaGeral=totalFiliais*CRONO_META;
-  const realizadasGeral=dados.porFilial.reduce((s,f)=>s+Math.min(f.qtd,CRONO_META),0);
+  const metaGeral=dados.porFilial.reduce((s,f)=>s+f.meta,0);
+  const realizadasGeral=dados.porFilial.reduce((s,f)=>s+Math.min(f.qtd,f.meta),0);
   const totalAuditoriasAno=dados.porFilial.reduce((s,f)=>s+f.qtd,0);
   const progressoGeral=Math.round(realizadasGeral/Math.max(metaGeral,1)*100);
   const emAndamento=_cronoEmAndamento();
 
   c.innerHTML = `
-    <div class="info-bar">🗓 <strong>Cronograma & Progresso das Auditorias</strong> — acompanhamento <em>independente do Ranking</em>, baseado somente na planilha importada (Filial, Data/Dt Início, Status e Nota). Meta: <strong>${CRONO_META} auditorias/ano por filial</strong>. As filiais <strong>FAP, GRA e FAG</strong> não são auditadas e ficam fora de qualquer cálculo desta aba. O progresso é medido pelo <strong>ritmo esperado até hoje</strong> (${Math.round(dados.fracaoAno*100)}% do ano ${anoSel} decorrido) — a meta cheia só se completa em dezembro. Apenas auditorias com <strong>Status = Finalizada</strong> contam; as demais aparecem como alerta no fim da página.</div>
+    <div class="info-bar">🗓 <strong>Cronograma & Progresso das Auditorias</strong> — acompanhamento <em>independente do Ranking</em>, baseado somente na planilha importada (Filial, Data/Dt Início, Status e Nota). Meta: <strong>${CRONO_META} auditorias/ano por filial</strong>, exceto as <strong>filiais de confiança da diretoria</strong> (Cristalina, Jataí, Uberlândia e Cuiabá), com meta reduzida de <strong>${CRONO_META_CONFIANCA} auditorias/ano</strong>. As filiais <strong>FAP, GRA e FAG</strong> não são auditadas e ficam fora de qualquer cálculo desta aba. O progresso é medido pelo <strong>ritmo esperado até hoje</strong> (${Math.round(dados.fracaoAno*100)}% do ano ${anoSel} decorrido) — a meta cheia só se completa em dezembro. Apenas auditorias com <strong>Status = Finalizada</strong> contam; as demais aparecem como alerta no fim da página.</div>
 
     <input type="file" id="inp-cronograma" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarCronogramaArquivo(this)">
 
@@ -1723,6 +1736,8 @@ function renderAbaCronograma() {
           ${anos.length>1 ? `<select class="sel-sm" onchange="CRONO_ANO_SEL=parseInt(this.value);renderAbaCronograma();">${anos.map(a=>`<option value="${a}" ${a===anoSel?'selected':''}>Ano ${a}</option>`).join('')}</select>` : ''}
           <span style="font-size:12px;color:var(--text2);">Meta/ano:</span>
           <input id="crono-meta-input" type="number" min="1" max="24" value="${CRONO_META}" style="width:56px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+          <span style="font-size:12px;color:var(--text2);" title="Cristalina, Jataí, Uberlândia e Cuiabá">🤝 Confiança:</span>
+          <input id="crono-meta-confianca-input" type="number" min="1" max="24" value="${CRONO_META_CONFIANCA}" title="Meta reduzida para Cristalina, Jataí, Uberlândia e Cuiabá" style="width:56px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
           <button class="btn-topo" style="padding:6px 10px;font-size:11.5px;" onclick="salvarCronogramaMeta()">Salvar</button>
           <button class="btn-topo" style="padding:6px 10px;font-size:11.5px;" onclick="triggerCronogramaImport()" title="Substituir a planilha por uma versão atualizada">🔄 Trocar</button>
           <button class="btn-topo danger" style="padding:6px 10px;font-size:11.5px;" onclick="limparCronograma()">🗑 Limpar</button>
@@ -1744,14 +1759,16 @@ function renderAbaCronograma() {
         ${anos.length>1 ? `<select class="sel-sm" onchange="CRONO_ANO_SEL=parseInt(this.value);renderAbaCronograma();">${anos.map(a=>`<option value="${a}" ${a===anoSel?'selected':''}>Ano ${a}</option>`).join('')}</select>` : ''}
         <span style="font-size:12px;color:var(--text2);margin-left:auto;">Meta auditorias/ano por filial:</span>
         <input id="crono-meta-input" type="number" min="1" max="24" value="${CRONO_META}" style="width:64px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
+        <span style="font-size:12px;color:var(--text2);" title="Cristalina, Jataí, Uberlândia e Cuiabá">🤝 Confiança:</span>
+        <input id="crono-meta-confianca-input" type="number" min="1" max="24" value="${CRONO_META_CONFIANCA}" title="Meta reduzida para Cristalina, Jataí, Uberlândia e Cuiabá" style="width:64px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;">
         <button class="btn-topo" style="padding:6px 10px;font-size:11.5px;" onclick="salvarCronogramaMeta()">Salvar</button>
       </div>
     </div>`}
 
     ${!CRONO_AUDITORIAS.length ? '' : `
     <div class="kpi-grid" style="margin-bottom:20px;">
-      <div class="kpi b"><div class="kl">Progresso Geral ${anoSel}</div><div class="kv">${progressoGeral}%</div><div class="ks">${realizadasGeral}/${metaGeral} auditorias (limite ${CRONO_META}/filial)</div></div>
-      <div class="kpi clicavel ${filiaisAtrasadas===0?'g':'a'}" onclick="_cronoAbrirDetalheKpi('ritmo')" title="Clique para ver a lista de filiais"><div class="kl">Filiais no Ritmo</div><div class="kv">${filiaisNoRitmo}/${totalFiliais}</div><div class="ks">${dados.ritmoEsperadoFilial} auditoria(s) esperada(s) até hoje · ${filiaisCompletas} já cumpriram as ${CRONO_META} no ano</div></div>
+      <div class="kpi b"><div class="kl">Progresso Geral ${anoSel}</div><div class="kv">${progressoGeral}%</div><div class="ks">${realizadasGeral}/${metaGeral} auditorias (limite ${CRONO_META}/filial · ${CRONO_META_CONFIANCA}/confiança)</div></div>
+      <div class="kpi clicavel ${filiaisAtrasadas===0?'g':'a'}" onclick="_cronoAbrirDetalheKpi('ritmo')" title="Clique para ver a lista de filiais"><div class="kl">Filiais no Ritmo</div><div class="kv">${filiaisNoRitmo}/${totalFiliais}</div><div class="ks">${dados.ritmoEsperadoFilial} esperada(s) (${dados.ritmoEsperadoFilialConfianca} p/ confiança) até hoje · ${filiaisCompletas} já cumpriram a meta no ano</div></div>
       <div class="kpi clicavel ${filiaisAtrasadas?'r':'g'}" onclick="_cronoAbrirDetalheKpi('atrasadas')" title="Clique para ver a lista de filiais"><div class="kl">Filiais Atrasadas</div><div class="kv">${filiaisAtrasadas}</div><div class="ks">${filiaisAtrasadas?'abaixo do ritmo esperado — priorize na agenda':'nenhuma — todas em dia 🎉'}</div></div>
       <div class="kpi"><div class="kl">Auditorias Finalizadas</div><div class="kv">${totalAuditoriasAno}</div><div class="ks">no ano ${anoSel}</div></div>
       <div class="kpi clicavel ${emAndamento.length?'a':'g'}" onclick="_cronoAbrirDetalheKpi('andamento')" title="Clique para ver a lista"><div class="kl">🔔 Em Andamento</div><div class="kv">${emAndamento.length}</div><div class="ks">${emAndamento.length?'aguardando finalização':'nenhuma pendência'}</div></div>
@@ -1797,7 +1814,7 @@ function renderAbaCronograma() {
           </table>
         </div>
       </div>
-      <div style="font-size:10.5px;color:var(--text3);margin-top:6px;">* Ritmo esperado = quantas auditorias o auditor já deveria ter feito até hoje (${Math.round(dados.fracaoAno*100)}% do ano ${anoSel} decorrido) para cumprir a meta de ${CRONO_META}/filial até 31/12. Projeção = total estimado ao fim do ano mantendo o ritmo atual.</div>
+      <div style="font-size:10.5px;color:var(--text3);margin-top:6px;">* Ritmo esperado = quantas auditorias o auditor já deveria ter feito até hoje (${Math.round(dados.fracaoAno*100)}% do ano ${anoSel} decorrido) para cumprir a meta de cada filial até 31/12 — ${CRONO_META}/filial, ou ${CRONO_META_CONFIANCA} para as filiais de confiança da diretoria (Cristalina, Jataí, Uberlândia e Cuiabá). Projeção = total estimado ao fim do ano mantendo o ritmo atual.</div>
     </div>
 
     <div class="secao"><div class="secao-titulo">Detalhe por Filial</div>
@@ -1828,7 +1845,7 @@ function renderAbaCronograma() {
     ${emAndamento.length ? `
     <div class="chart-card" style="border:1px solid var(--red);background:rgba(220,53,69,.07);margin-top:20px;">
       <div class="chart-title" style="color:var(--red-dk);">🔔 ${emAndamento.length} Auditoria(s) Em Andamento — ainda não finalizada(s)</div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">Estas auditorias já foram iniciadas, mas continuam com Status = "Em andamento" na planilha. Elas <strong>não contam</strong> para a meta de ${CRONO_META}/ano até serem finalizadas — peça para o auditor concluir o lançamento no sistema de origem. Clique nos títulos das colunas para ordenar.</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">Estas auditorias já foram iniciadas, mas continuam com Status = "Em andamento" na planilha. Elas <strong>não contam</strong> para a meta anual da filial até serem finalizadas — peça para o auditor concluir o lançamento no sistema de origem. Clique nos títulos das colunas para ordenar.</p>
       <div style="overflow-x:auto;">
         <table class="rank-table" id="tabela-crono-andamento">
           <thead><tr>
@@ -2048,7 +2065,7 @@ function renderTabelaCronograma() {
     return true;
   }).sort((a,b)=>_cronoCompareDetalhe(a,b,col,dir));
   body.innerHTML = lista.map(f=>`<tr>
-    <td><b style="font-size:13px;">${f.filialNome}</b><br><span style="font-size:11px;color:var(--text3)">${f.filial} · Nº ${f.numero}</span></td>
+    <td><b style="font-size:13px;">${f.filialNome}</b>${f.confianca?' <span title="Filial de confiança da diretoria — meta reduzida">🤝</span>':''}<br><span style="font-size:11px;color:var(--text3)">${f.filial} · Nº ${f.numero}</span></td>
     <td>${f.auditor}</td><td>${f.regional}</td>
     <td style="text-align:center;font-weight:600;">${f.qtd}<span style="color:var(--text3);font-weight:400;">/${f.meta}</span></td>
     <td style="text-align:center;font-weight:600;color:${f.faltam?'var(--amber-dk)':'var(--green-dk)'};">${f.faltam}</td>
@@ -2150,7 +2167,7 @@ function renderAbaGuia() {
       <div class="guia-secao-tag">FREQUÊNCIA E PERÍODO DE AVALIAÇÃO</div>
       <div class="chart-card">
         <div class="guia-txt" style="margin-bottom:10px;"><strong>Por Auditoria (aba "Por Período"):</strong> cada visita gera um score isolado daquele mês/rodada — serve para acompanhamento mês a mês, não é o ranking oficial.</div>
-        <div class="guia-txt" style="margin-bottom:10px;"><strong>Ranking Anual (aba "🏆 Ranking Anual"):</strong> é o <strong>ranking oficial da premiação</strong>. Consolida a média de <em>todas</em> as auditorias (todas as rodadas) que a filial teve no ano de referência (${CONFIG.ano}). Rodadas previstas por filial: ${CONFIG.totalRodadas||4}.</div>
+        <div class="guia-txt" style="margin-bottom:10px;"><strong>Ranking Anual (aba "🏆 Ranking Anual"):</strong> é o <strong>ranking oficial da premiação</strong>. Consolida a média de <em>todas</em> as auditorias (todas as rodadas) que a filial teve no ano de referência (${CONFIG.ano}). Rodadas previstas por filial: ${CONFIG.totalRodadas||4} (🤝 ${CONFIG.rodadasConfianca||2} para Cristalina, Jataí, Uberlândia e Cuiabá — filiais de confiança da diretoria).</div>
         <div class="guia-txt"><strong>Cobertura:</strong> antes de premiar, confira na aba "✅ Cobertura" se todas as filiais já passaram por auditoria no ano — comparar um universo incompleto pode ser injusto.</div>
       </div>
 
@@ -2344,7 +2361,7 @@ function exportarRankingXLS() {
 function salvarRankingJSON() {
   if(!REGISTROS.length && !Object.keys(FAT_HISTORICO).length && !CRONO_AUDITORIAS.length){ alert('Sem dados.'); return; }
   const dt=new Date().toLocaleDateString('pt-BR').split('/').join('-');
-  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,fatHistorico:FAT_HISTORICO,fatBaseInfo:FAT_BASE_INFO,auditoriaNotas:AUDITORIA_NOTAS,auditoriaNotasInfo:AUDITORIA_NOTAS_INFO,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS,cronoAuditorias:CRONO_AUDITORIAS,cronoArquivoInfo:CRONO_ARQUIVO_INFO,cronoMeta:CRONO_META};
+  const payload={registros:REGISTROS,faturamentos:FATURAMENTOS,fatHistorico:FAT_HISTORICO,fatBaseInfo:FAT_BASE_INFO,auditoriaNotas:AUDITORIA_NOTAS,auditoriaNotasInfo:AUDITORIA_NOTAS_INFO,observacoes:OBSERVACOES,config:CONFIG,arquivos:ARQUIVOS,cronoAuditorias:CRONO_AUDITORIAS,cronoArquivoInfo:CRONO_ARQUIVO_INFO,cronoMeta:CRONO_META,cronoMetaConfianca:CRONO_META_CONFIANCA};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=`Ranking_Backup_${dt}.json`;a.click();
@@ -2368,6 +2385,7 @@ function lerBackupJSON(input) {
       if(d.cronoAuditorias) CRONO_AUDITORIAS=d.cronoAuditorias;
       if(d.cronoArquivoInfo) CRONO_ARQUIVO_INFO=d.cronoArquivoInfo;
       if(d.cronoMeta) CRONO_META=d.cronoMeta;
+      if(d.cronoMetaConfianca) CRONO_META_CONFIANCA=d.cronoMetaConfianca;
       if(d.arquivos && d.arquivos.length) { processarERenderizar(); }
       else if(d.registros){ REGISTROS=d.registros; document.getElementById('tela-import').style.display='none'; document.getElementById('painel').classList.remove('hidden'); mudarAba('anual'); }
       else if(d.fatHistorico){ document.getElementById('tela-import').style.display='none'; document.getElementById('painel').classList.remove('hidden'); mudarAba('anual'); }
@@ -2485,6 +2503,7 @@ async function syncPull(){
       if(remote.cronoAuditorias) CRONO_AUDITORIAS=remote.cronoAuditorias;
       if(remote.cronoArquivoInfo) CRONO_ARQUIVO_INFO=remote.cronoArquivoInfo;
       if(remote.cronoMeta) CRONO_META=remote.cronoMeta;
+      if(remote.cronoMetaConfianca) CRONO_META_CONFIANCA=remote.cronoMetaConfianca;
       if(remote.arquivos && remote.arquivos.length){
         ARQUIVOS=remote.arquivos;
         processarERenderizar();
@@ -2524,7 +2543,7 @@ async function syncPush(){
       registros:REGISTROS, faturamentos:FATURAMENTOS, fatHistorico:FAT_HISTORICO, fatBaseInfo:FAT_BASE_INFO,
       auditoriaNotas:AUDITORIA_NOTAS, auditoriaNotasInfo:AUDITORIA_NOTAS_INFO, observacoes:OBSERVACOES,
       config:CONFIG, arquivos:ARQUIVOS,
-      cronoAuditorias:CRONO_AUDITORIAS, cronoArquivoInfo:CRONO_ARQUIVO_INFO, cronoMeta:CRONO_META,
+      cronoAuditorias:CRONO_AUDITORIAS, cronoArquivoInfo:CRONO_ARQUIVO_INFO, cronoMeta:CRONO_META, cronoMetaConfianca:CRONO_META_CONFIANCA,
       lastUpdate:new Date().toISOString(), app:'agroquima-ranking'
     };
     await jbinWrite(binId, masterKey, compactarPayload(payload));
@@ -2596,6 +2615,7 @@ function renderAbaConfig(){
             <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;">Ano de Referência</span><input id="cfg-ano" type="number" value="${CONFIG.ano}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;"></div>
             <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;">Teto do Bônus de Volume</span><input id="cfg-bonus" type="number" step="0.5" value="${CONFIG.tetoBonus}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;"></div>
             <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;">Rodadas por Filial (Previstas)</span><input id="cfg-rodadas" type="number" min="1" max="12" value="${CONFIG.totalRodadas||4}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;" title="Quantas auditorias são esperadas por filial até a premiação"></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="flex:1;font-size:12px;" title="Cristalina, Jataí, Uberlândia e Cuiabá">🤝 Rodadas — Filiais de Confiança</span><input id="cfg-rodadas-confianca" type="number" min="1" max="12" value="${CONFIG.rodadasConfianca||2}" style="width:130px;padding:6px 10px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;" title="Meta reduzida de rodadas para Cristalina, Jataí, Uberlândia e Cuiabá — filiais de maior confiança da diretoria"></div>
             <button class="btn-topo" style="margin-top:4px;" onclick="salvarConfigParams()">Salvar Parâmetros</button>
           </div>
         </div>
@@ -2686,6 +2706,7 @@ function salvarConfigParams(){
   CONFIG.ano=parseInt(document.getElementById('cfg-ano').value)||new Date().getFullYear();
   CONFIG.tetoBonus=parseFloat(document.getElementById('cfg-bonus').value)||5;
   CONFIG.totalRodadas=parseInt(document.getElementById('cfg-rodadas')?.value)||4;
+  CONFIG.rodadasConfianca=parseInt(document.getElementById('cfg-rodadas-confianca')?.value)||2;
   showConfigStatus('ok','Parâmetros salvos!');
   if(REGISTROS.length) processarERenderizar();
 }
