@@ -270,23 +270,17 @@ canvas{max-width:100%;}
   <div id="sync-indicator" style="display:inline-flex;align-items:center;padding:5px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--border);margin-right:4px;" title="Status da sincronização com a nuvem">☁ <span style="font-size:11px;margin-left:4px;color:var(--text3);">Sem sync</span></div>
   <button id="btn-acoes-mobile" style="display:none;" onclick="toggleAcoesMobile()">&#9776; A&ccedil;&otilde;es</button>
   <div class="topo-btns" id="topo-btns-wrap">
-    <button class="btn-topo primary" onclick="triggerImport()" title="Importar novas auditorias de Pedido/Canhoto e Vencidos (.json/.xlsx)">📥<span class="btn-topo-txt"> Importar</span></button>
-    <button class="btn-topo" onclick="abrirModalFaturamento()" title="Ajuste manual de faturamento">💰<span class="btn-topo-txt"> Faturamentos</span></button>
-    <button class="btn-topo" onclick="document.getElementById('inp-fat-json').click()" title="Importar base de faturamento (JSON)">📊<span class="btn-topo-txt"> Base Fat.</span></button>
-    <input type="file" id="inp-fat-json" accept=".json" style="display:none;" onchange="processarFatJSON(this)">
-    <button class="btn-topo" onclick="document.getElementById('inp-nota-auditoria').click()" title="Importar planilha de Nota Média de Auditoria (peso igual à Semente no Ranking Anual)">🏆<span class="btn-topo-txt"> Nota Aud.</span></button>
-    <input type="file" id="inp-nota-auditoria" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarNotaAuditoriaArquivo(this)">
+    <button class="btn-topo primary" onclick="triggerImport()" title="Importar arquivos de auditoria (.json/.xlsx)">📥<span class="btn-topo-txt"> Importar</span></button>
+    <button class="btn-topo" onclick="abrirModalFaturamento()" title="Importar base de faturamento ou ajustar manualmente">📊<span class="btn-topo-txt"> Faturamento</span></button>
     <button class="btn-topo" onclick="syncPush()" title="Publicar dados na nuvem (JSONBin)">☁<span class="btn-topo-txt"> Publicar</span></button>
-    <button class="btn-topo" onclick="abrirAbaConfig()" title="Configurar nuvem JSONBin e parâmetros">⚙<span class="btn-topo-txt"> Config</span></button>
-    <button class="btn-topo primary" onclick="exportarRankingXLS()" title="Exportar ranking (.xlsx)">📥<span class="btn-topo-txt"> Exportar</span></button>
-    <button class="btn-topo" onclick="salvarRankingJSON()" title="Salvar backup (.json)">💾<span class="btn-topo-txt"> Salvar</span></button>
-    <button class="btn-topo" onclick="document.getElementById('inp-backup').click()" title="Carregar backup (.json)">📂<span class="btn-topo-txt"> Carregar</span></button>
-    <button class="btn-topo" onclick="abrirGerenciarArquivos()" title="Excluir um arquivo importado específico">🗑<span class="btn-topo-txt"> Arquivos</span></button>
-    <button class="btn-topo danger" onclick="limparTudo()" title="Limpar todos os dados">✕<span class="btn-topo-txt"> Limpar</span></button>
+    <button class="btn-topo" onclick="exportarRankingXLS()" title="Exportar ranking (.xlsx)">📤<span class="btn-topo-txt"> Exportar</span></button>
+    <button class="btn-topo" onclick="abrirAbaConfig()" title="Configurações, backup e dados complementares">⚙<span class="btn-topo-txt"> Config</span></button>
   </div>
   </div><!-- /topo-btns-wrap -->
   <input type="file" id="inp-import" accept=".json,.xlsx,.xls" multiple style="display:none;" onchange="processarArquivosImportados(this)">
   <input type="file" id="inp-backup" accept=".json" style="display:none;" onchange="lerBackupJSON(this)">
+  <input type="file" id="inp-fat-json" accept=".json" style="display:none;" onchange="processarFatJSON(this)">
+  <input type="file" id="inp-nota-auditoria" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarNotaAuditoriaArquivo(this)">
 </div>
 
 <!-- MODAL GERENCIAR ARQUIVOS -->
@@ -304,8 +298,12 @@ canvas{max-width:100%;}
 <!-- MODAL FATURAMENTO -->
 <div class="modal-overlay hidden" id="modal-fat">
   <div class="modal-box">
-    <div class="modal-title">💰 Faturamento das Filiais</div>
-    <div class="modal-sub">Ajuste manual por filial. Para importar automaticamente por período, use <strong>📊 Base Fat. (JSON)</strong>. Sem faturamento o componente Vencidos assume 0%.</div>
+    <div class="modal-title">📊 Faturamento das Filiais</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+      <button class="btn-modal sec" onclick="document.getElementById('inp-fat-json').click()" title="Importar base de faturamento por período (JSON gerado pelo sistema)">📂 Importar Base JSON</button>
+      <button class="btn-modal sec" onclick="fecharModal('modal-fat');abrirFatHistoricoView()" title="Ver tabela completa de faturamento carregado">👁 Ver Base Carregada</button>
+    </div>
+    <div class="modal-sub">Ajuste manual por filial abaixo. Sem faturamento o componente Vencidos assume 0%.</div>
     <div id="fat-rows"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
       <button class="btn-modal sec" onclick="fecharModal('modal-fat')">Cancelar</button>
@@ -2638,7 +2636,7 @@ function renderAbaConfig(){
         <div style="font-size:13px;line-height:1.8;">
           <span style="color:var(--amber-dk);font-weight:700;">⚠ Sem metadados de importação</span>, mas há histórico aplicado.<br>
           <button class="btn-topo" style="margin-top:8px;" onclick="abrirFatHistoricoView()">👁 Ver Tabela Completa (Filial × Período)</button>
-        </div>` : `<span style="color:var(--text3);">⚠ Nenhuma base de faturamento carregada ainda. Use o botão <strong>📊 Base Fat.</strong> no topo.</span>`)}
+        </div>` : `<span style="color:var(--text3);">⚠ Nenhuma base de faturamento carregada ainda. Use o botão <strong>📊 Faturamento</strong> na barra superior e clique em "Importar Base JSON".</span>`)}
     </div>
 
     <div class="chart-card" style="max-width:1000px;margin-top:20px;">
@@ -2649,8 +2647,29 @@ function renderAbaConfig(){
           Arquivo: <code style="font-size:11px;background:var(--bg3);padding:1px 5px;border-radius:3px;">${AUDITORIA_NOTAS_INFO.arquivo}</code><br>
           ${AUDITORIA_NOTAS_INFO.qtdFiliais} filiais com auditoria finalizada · ${AUDITORIA_NOTAS_INFO.qtdFinalizadas} de ${AUDITORIA_NOTAS_INFO.qtdTotal} linhas consideradas (apenas Status = Finalizada)<br>
           <span style="font-size:11px;color:var(--text3);">Para as filiais com nota carregada, o Score Final Anual passa a usar Semente 20 + Nota Auditoria 20 (peso igual) + Pedido 30 + Vencidos 20 + Canhoto 10. Filiais sem nota mantêm a fórmula original (Semente 40).</span><br>
+          <button class="btn-topo" style="margin-top:8px;" onclick="document.getElementById('inp-nota-auditoria').click()">🏆 Substituir Planilha</button>
           <button class="btn-topo danger" style="margin-top:8px;" onclick="removerNotaAuditoria()">✕ Remover Nota de Auditoria</button>
-        </div>` : `<span style="color:var(--text3);">⚠ Nenhuma planilha de Nota de Auditoria carregada ainda. Use o botão <strong>🏆 Nota Auditoria</strong> no topo. Pode ser incluída ou removida a qualquer momento — sincroniza com a nuvem automaticamente.</span>`}
+        </div>` : `
+        <div>
+          <span style="color:var(--text3);">⚠ Nenhuma planilha de Nota de Auditoria carregada. Pode ser incluída ou removida a qualquer momento — sincroniza automaticamente.</span><br>
+          <button class="btn-topo" style="margin-top:10px;" onclick="document.getElementById('inp-nota-auditoria').click()">🏆 Importar Nota de Auditoria</button>
+        </div>`}
+    </div>
+
+    <div class="chart-card" style="max-width:1000px;margin-top:20px;">
+      <div class="chart-title">🗄 Backup & Dados</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:4px;">
+        <button class="btn-topo" onclick="salvarRankingJSON()" title="Salvar backup completo (.json)">💾 Salvar Backup</button>
+        <button class="btn-topo" onclick="document.getElementById('inp-backup').click()" title="Restaurar todos os dados a partir de um backup (.json)">📂 Carregar Backup</button>
+        <button class="btn-topo" onclick="abrirGerenciarArquivos()" title="Excluir um arquivo de auditoria importado individualmente">🗑 Gerenciar Arquivos</button>
+        <button class="btn-topo danger" onclick="limparTudo()" title="Apaga todos os dados — irreversível">✕ Limpar Tudo</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.6;">
+        <strong>Salvar Backup</strong>: exporta .json com todos os dados (ranking, faturamento, notas, cronograma). ·
+        <strong>Carregar Backup</strong>: restaura o painel a partir de um backup salvo. ·
+        <strong>Gerenciar Arquivos</strong>: remove individualmente um arquivo importado por engano. ·
+        <strong>Limpar Tudo</strong>: apaga todos os dados — use somente para recomeçar do zero.
+      </div>
     </div>`;
 }
 
