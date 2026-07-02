@@ -278,9 +278,9 @@ canvas{max-width:100%;}
     <input type="file" id="inp-nota-auditoria" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarNotaAuditoriaArquivo(this)">
     <button class="btn-topo" onclick="syncPush()" title="Publicar dados na nuvem (JSONBin)">☁<span class="btn-topo-txt"> Publicar</span></button>
     <button class="btn-topo" onclick="abrirAbaConfig()" title="Configurar nuvem JSONBin e parâmetros">⚙<span class="btn-topo-txt"> Config</span></button>
-    <button class="btn-topo primary" onclick="exportarRankingXLS()" title="Exportar ranking (.xlsx)">📥<span class="btn-topo-txt"> Exportar</span></button>
-    <button class="btn-topo" onclick="salvarRankingJSON()" title="Salvar backup (.json)">💾<span class="btn-topo-txt"> Salvar</span></button>
-    <button class="btn-topo" onclick="document.getElementById('inp-backup').click()" title="Carregar backup (.json)">📂<span class="btn-topo-txt"> Carregar</span></button>
+    <button class="btn-topo" onclick="exportarRankingXLS()" title="Exportar ranking (.xlsx)">📤<span class="btn-topo-txt"> Exportar</span></button>
+    <button class="btn-topo" onclick="salvarRankingJSON()" title="Salvar backup completo (.json)">💾<span class="btn-topo-txt"> Salvar</span></button>
+    <button class="btn-topo" onclick="document.getElementById('inp-backup').click()" title="Carregar backup completo (.json)">📂<span class="btn-topo-txt"> Carregar</span></button>
     <button class="btn-topo" onclick="abrirGerenciarArquivos()" title="Excluir um arquivo importado específico">🗑<span class="btn-topo-txt"> Arquivos</span></button>
     <button class="btn-topo danger" onclick="limparTudo()" title="Limpar todos os dados">✕<span class="btn-topo-txt"> Limpar</span></button>
   </div>
