@@ -4,6 +4,12 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Ranking Geral de Auditorias — AGROQUIMA</title>
+<!-- Inicialização de tema (antes de qualquer render para evitar flash) -->
+<script>(function(){
+  var s=localStorage.getItem('ranking-theme');
+  var d=window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches;
+  document.documentElement.setAttribute('data-theme',s||(d?'dark':'light'));
+})();</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -24,6 +30,34 @@
   --sh:0 1px 3px rgba(0,0,0,.4);--sh-md:0 6px 18px rgba(0,0,0,.5);
   --fonte:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
   --ouro:#f2c451;--prata:#b8c4d0;--bronze:#cd7f32;
+}
+/* ─── TEMA CLARO ──────────────────────────────────────────── */
+[data-theme="light"]{
+  --bg:#f0f4f9;--bg2:#ffffff;--bg3:#e6edf5;
+  --text:#1a2a3d;--text2:#45607a;--text3:#7a90a8;
+  --border:#c5d4e4;--border2:#9ab4cb;
+  --brand:#1565c0;--brand2:#2980d9;--brand-lt:#dce9fa;--brand-glow:rgba(21,101,192,.12);--brand-dk:#0d4ea6;
+  --red:#c0392b;--red-lt:#fdecea;--red-dk:#962d23;
+  --green:#1e8449;--green-lt:#e0f5eb;--green-dk:#145f35;
+  --amber:#b7770d;--amber-lt:#fef3dc;--amber-dk:#8a5a09;
+  --gray:#6b7d8f;
+  --sh:0 1px 4px rgba(0,0,0,.09);--sh-md:0 6px 20px rgba(0,0,0,.11);
+  --ouro:#c8860a;--prata:#6b7d8f;--bronze:#8b5a1a;
+}
+/* Seguir dispositivo quando não há preferência explícita salva */
+@media(prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+    --bg:#f0f4f9;--bg2:#ffffff;--bg3:#e6edf5;
+    --text:#1a2a3d;--text2:#45607a;--text3:#7a90a8;
+    --border:#c5d4e4;--border2:#9ab4cb;
+    --brand:#1565c0;--brand2:#2980d9;--brand-lt:#dce9fa;--brand-glow:rgba(21,101,192,.12);--brand-dk:#0d4ea6;
+    --red:#c0392b;--red-lt:#fdecea;--red-dk:#962d23;
+    --green:#1e8449;--green-lt:#e0f5eb;--green-dk:#145f35;
+    --amber:#b7770d;--amber-lt:#fef3dc;--amber-dk:#8a5a09;
+    --gray:#6b7d8f;
+    --sh:0 1px 4px rgba(0,0,0,.09);--sh-md:0 6px 20px rgba(0,0,0,.11);
+    --ouro:#c8860a;--prata:#6b7d8f;--bronze:#8b5a1a;
+  }
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:var(--fonte);background:var(--bg);color:var(--text);font-size:14px;min-height:100vh;}
@@ -255,6 +289,17 @@ canvas{max-width:100%;}
   .sel-sm { width:100%!important; }
   .periodo-tags { flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px; }
 }
+/* ─── TRANSIÇÃO SUAVE AO MUDAR TEMA ──────────────────────── */
+body,#topo,.kpi,.chart-card,.rank-wrap,.modal-box,.arq-card,.drop-zone,.btn-topo,.sel-sm,.busca{
+  transition:background-color .2s,border-color .2s,color .2s,box-shadow .2s;
+}
+/* Botão de tema */
+.btn-tema{border:1px solid var(--border2)!important;}
+.btn-tema:hover{background:var(--bg3)!important;border-color:var(--brand)!important;}
+/* Linha da tabela do cronograma clicável */
+.crono-row-click{cursor:pointer;}
+.crono-row-click:hover{background:rgba(43,127,212,.08);}
+[data-theme="light"] .crono-row-click:hover{background:rgba(21,101,192,.07);}
 </style>
 </head>
 <body>
@@ -270,6 +315,7 @@ canvas{max-width:100%;}
   <div id="sync-indicator" style="display:inline-flex;align-items:center;padding:5px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--border);margin-right:4px;" title="Status da sincronização com a nuvem">☁ <span style="font-size:11px;margin-left:4px;color:var(--text3);">Sem sync</span></div>
   <button id="btn-acoes-mobile" style="display:none;" onclick="toggleAcoesMobile()">&#9776; A&ccedil;&otilde;es</button>
   <div class="topo-btns" id="topo-btns-wrap">
+    <button class="btn-topo btn-tema" id="btn-tema" onclick="toggleThema()" title="Alternar tema claro/escuro"><span id="icone-tema">☀</span><span class="btn-topo-txt" id="label-tema"> Claro</span></button>
     <button class="btn-topo primary" onclick="triggerImport()" title="Importar arquivos de auditoria (.json/.xlsx)">📥<span class="btn-topo-txt"> Importar</span></button>
     <button class="btn-topo" onclick="abrirModalFaturamento()" title="Importar base de faturamento ou ajustar manualmente">📊<span class="btn-topo-txt"> Faturamento</span></button>
     <button class="btn-topo" onclick="syncPush()" title="Publicar dados na nuvem (JSONBin)">☁<span class="btn-topo-txt"> Publicar</span></button>
@@ -376,6 +422,17 @@ canvas{max-width:100%;}
     <div id="kpi-detalhe-body" style="max-height:480px;overflow:auto;margin-top:12px;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
       <button class="btn-modal primary" onclick="fecharModal('modal-kpi-detalhe')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALHE DE FILIAL (Cronograma) -->
+<div class="modal-overlay hidden" id="modal-crono-filial">
+  <div class="modal-box" style="max-width:680px;">
+    <div class="modal-title" id="crono-filial-titulo">Histórico de Auditorias</div>
+    <div id="crono-filial-body" style="max-height:520px;overflow:auto;margin-top:12px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn-modal primary" onclick="fecharModal('modal-crono-filial')">Fechar</button>
     </div>
   </div>
 </div>
@@ -1463,9 +1520,10 @@ function renderAbaEvolucao() {
         data:periodos.map(p=>{ const r=REGISTROS.find(x=>x.filial===f&&x.periodo===p); return r?r.scoreFinal:null; }),
         borderColor:palette[idx%palette.length], backgroundColor:'transparent', tension:.3, spanGaps:true, pointRadius:3,
       }));
+      const _cv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
       chartEvol=new Chart(ctx,{type:'line',data:{labels:periodos,datasets},
-        options:{responsive:true,plugins:{legend:{labels:{color:'#8ba2c2',font:{size:10},boxWidth:12}}},
-          scales:{y:{min:0,max:105,grid:{color:'#1a2c47'},ticks:{color:'#54667f'}},x:{grid:{color:'#1a2c47'},ticks:{color:'#54667f'}}}}});
+        options:{responsive:true,plugins:{legend:{labels:{color:_cv('--text2'),font:{size:10},boxWidth:12}}},
+          scales:{y:{min:0,max:105,grid:{color:_cv('--border')},ticks:{color:_cv('--text3')}},x:{grid:{color:_cv('--border')},ticks:{color:_cv('--text3')}}}}});
     },50);
   }
 }
@@ -1765,10 +1823,10 @@ function renderAbaCronograma() {
 
     ${!CRONO_AUDITORIAS.length ? '' : `
     <div class="kpi-grid" style="margin-bottom:20px;">
-      <div class="kpi b"><div class="kl">Progresso Geral ${anoSel}</div><div class="kv">${progressoGeral}%</div><div class="ks">${realizadasGeral}/${metaGeral} auditorias (limite ${CRONO_META}/filial · ${CRONO_META_CONFIANCA}/confiança)</div></div>
+      <div class="kpi b clicavel" onclick="_cronoAbrirDetalheKpi('progresso')" title="Clique para ver detalhes por filial"><div class="kl">Progresso Geral ${anoSel}</div><div class="kv">${progressoGeral}%</div><div class="ks">${realizadasGeral}/${metaGeral} auditorias (limite ${CRONO_META}/filial · ${CRONO_META_CONFIANCA}/confiança)</div></div>
       <div class="kpi clicavel ${filiaisAtrasadas===0?'g':'a'}" onclick="_cronoAbrirDetalheKpi('ritmo')" title="Clique para ver a lista de filiais"><div class="kl">Filiais no Ritmo</div><div class="kv">${filiaisNoRitmo}/${totalFiliais}</div><div class="ks">${dados.ritmoEsperadoFilial} esperada(s) (${dados.ritmoEsperadoFilialConfianca} p/ confiança) até hoje · ${filiaisCompletas} já cumpriram a meta no ano</div></div>
       <div class="kpi clicavel ${filiaisAtrasadas?'r':'g'}" onclick="_cronoAbrirDetalheKpi('atrasadas')" title="Clique para ver a lista de filiais"><div class="kl">Filiais Atrasadas</div><div class="kv">${filiaisAtrasadas}</div><div class="ks">${filiaisAtrasadas?'abaixo do ritmo esperado — priorize na agenda':'nenhuma — todas em dia 🎉'}</div></div>
-      <div class="kpi"><div class="kl">Auditorias Finalizadas</div><div class="kv">${totalAuditoriasAno}</div><div class="ks">no ano ${anoSel}</div></div>
+      <div class="kpi clicavel" onclick="_cronoAbrirDetalheKpi('finalizadas')" title="Clique para ver a lista de auditorias finalizadas"><div class="kl">Auditorias Finalizadas</div><div class="kv">${totalAuditoriasAno}</div><div class="ks">no ano ${anoSel} · clique para ver todas</div></div>
       <div class="kpi clicavel ${emAndamento.length?'a':'g'}" onclick="_cronoAbrirDetalheKpi('andamento')" title="Clique para ver a lista"><div class="kl">🔔 Em Andamento</div><div class="kv">${emAndamento.length}</div><div class="ks">${emAndamento.length?'aguardando finalização':'nenhuma pendência'}</div></div>
     </div>
 
@@ -1881,11 +1939,12 @@ function renderAbaCronograma() {
     const mesAtual=(anoSel===new Date().getFullYear()) ? new Date().getMonth() : 11;
     const realData=cum.map((v,i)=> i<=mesAtual ? v : null);
     const metaLinha=meses.map((_,i)=>Math.round(metaGeral*(i+1)/12));
+    const _cv2=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
     chartCronoEvol=new Chart(ctx,{type:'line',data:{labels:meses,datasets:[
-      {label:'Realizado (acumulado)', data:realData, borderColor:'#2b7fd4', backgroundColor:'rgba(43,127,212,.12)', tension:.25, spanGaps:false, pointRadius:3, fill:true},
-      {label:'Meta Ideal (ritmo linear)', data:metaLinha, borderColor:'#54667f', borderDash:[5,4], pointRadius:0, tension:0, fill:false},
-    ]}, options:{responsive:true, plugins:{legend:{labels:{color:'#8ba2c2',font:{size:10},boxWidth:12}}},
-      scales:{y:{beginAtZero:true,grid:{color:'#1a2c47'},ticks:{color:'#54667f'}},x:{grid:{color:'#1a2c47'},ticks:{color:'#54667f'}}}}});
+      {label:'Realizado (acumulado)', data:realData, borderColor:_cv2('--brand'), backgroundColor:_cv2('--brand-glow'), tension:.25, spanGaps:false, pointRadius:3, fill:true},
+      {label:'Meta Ideal (ritmo linear)', data:metaLinha, borderColor:_cv2('--text3'), borderDash:[5,4], pointRadius:0, tension:0, fill:false},
+    ]}, options:{responsive:true, plugins:{legend:{labels:{color:_cv2('--text2'),font:{size:10},boxWidth:12}}},
+      scales:{y:{beginAtZero:true,grid:{color:_cv2('--border')},ticks:{color:_cv2('--text3')}},x:{grid:{color:_cv2('--border')},ticks:{color:_cv2('--text3')}}}}});
   },50);
 }
 
@@ -2023,6 +2082,25 @@ function _cronoAbrirDetalheKpi(tipo) {
     theadHtml = `<tr><th>Filial</th><th>Auditor</th><th style="text-align:center;">Auditorias no Ano</th><th>Última Auditoria</th></tr>`;
     linhasHtml = filiais.map(f=>`<tr><td><b>${f.filial}</b> · ${f.filialNome}</td><td>${f.auditor}</td><td style="text-align:center;">${f.qtd}/${f.meta}</td><td>${f.ultima||'nunca auditada'}</td></tr>`).join('')
       || `<tr><td colspan="4" style="color:var(--text3);padding:14px 6px;">Nenhuma filial nesta condição.</td></tr>`;
+  } else if (tipo==='progresso') {
+    const filiais=(window._cronoDadosFilial||[]).slice().sort((a,b)=>b.progresso-a.progresso);
+    tituloTxt=`📊 Progresso por Filial — ${CRONO_ANO_SEL}`;
+    theadHtml=`<tr><th>Filial</th><th>Auditor</th><th style="text-align:center;">Realizadas</th><th style="text-align:center;">Progresso</th><th style="text-align:center;">Situação</th></tr>`;
+    linhasHtml=filiais.map(f=>`<tr>
+      <td><b>${f.filial}</b> · ${f.filialNome}</td><td>${f.auditor}</td>
+      <td style="text-align:center;">${f.qtd}/${f.meta}</td>
+      <td style="text-align:center;">${f.progresso}%</td>
+      <td style="text-align:center;color:${f.noRitmo?'var(--green-dk)':'var(--amber-dk)'};">${f.noRitmo?'✔ no ritmo':'⚠ atrasada'}</td>
+    </tr>`).join('')||`<tr><td colspan="5" style="color:var(--text3);padding:14px 6px;">Sem dados.</td></tr>`;
+  } else if (tipo==='finalizadas') {
+    const auds=CRONO_AUDITORIAS.filter(r=>r.ano===CRONO_ANO_SEL&&_cronoEhFinalizada(r)&&!CRONO_FILIAIS_IGNORADAS.includes(r.filial))
+      .slice().sort((a,b)=>b.data.localeCompare(a.data));
+    tituloTxt=`✔ ${auds.length} Auditorias Finalizadas — ${CRONO_ANO_SEL}`;
+    theadHtml=`<tr><th>Filial</th><th>Auditor</th><th>Data</th><th>Nº Auditoria</th><th style="text-align:center;">Nota</th></tr>`;
+    linhasHtml=auds.map(r=>{
+      const inf=infoFilial(r.filial)||{};
+      return `<tr><td><b>${r.filial}</b> · ${inf.loja||r.filial}</td><td>${r.auditor||inf.auditor||'—'}</td><td>${r.dataDisplay||r.data}</td><td>${r.numero||'—'}</td><td style="text-align:center;font-weight:700;">${r.nota!=null?r.nota:'—'}</td></tr>`;
+    }).join('')||`<tr><td colspan="5" style="color:var(--text3);padding:14px 6px;">Nenhuma auditoria finalizada.</td></tr>`;
   } else {
     const lista=[...(window._cronoEmAndamentoLista||[])].sort((a,b)=>b.dias-a.dias);
     tituloTxt = `🔔 ${lista.length} Auditoria(s) em Andamento`;
@@ -2062,7 +2140,7 @@ function renderTabelaCronograma() {
     if (busca && !(f.filial.includes(busca) || f.filialNome.toUpperCase().includes(busca) || f.auditor.toUpperCase().includes(busca))) return false;
     return true;
   }).sort((a,b)=>_cronoCompareDetalhe(a,b,col,dir));
-  body.innerHTML = lista.map(f=>`<tr>
+  body.innerHTML = lista.map(f=>`<tr class="crono-row-click" onclick="_cronoAbrirDetalheFilial('${f.filial}')" title="Ver histórico de auditorias de ${f.filialNome}">
     <td><b style="font-size:13px;">${f.filialNome}</b>${f.confianca?' <span title="Filial de confiança da diretoria — meta reduzida">🤝</span>':''}<br><span style="font-size:11px;color:var(--text3)">${f.filial} · Nº ${f.numero}</span></td>
     <td>${f.auditor}</td><td>${f.regional}</td>
     <td style="text-align:center;font-weight:600;">${f.qtd}<span style="color:var(--text3);font-weight:400;">/${f.meta}</span></td>
@@ -3049,6 +3127,90 @@ window.addEventListener('DOMContentLoaded', ()=>{
     processarERenderizar();
     if (ABA_ATUAL==='config') renderAbaConfig();
     if (getBinId() && getMasterKey()) syncPush();
+  }
+
+  // ── TEMA CLARO / ESCURO ───────────────────────────────────────────────────
+  function toggleThema() {
+    const cur = document.documentElement.getAttribute('data-theme');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('ranking-theme', next);
+    _atualizarBotaoTema();
+    // Reconstrói gráficos ativos para aplicar novas cores
+    if (ABA_ATUAL === 'evolucao') renderAbaEvolucao();
+    else if (ABA_ATUAL === 'cronograma') renderAbaCronograma();
+  }
+
+  function _atualizarBotaoTema() {
+    const theme = document.documentElement.getAttribute('data-theme');
+    const isDark = theme === 'dark';
+    const ic = document.getElementById('icone-tema');
+    const lb = document.getElementById('label-tema');
+    if (ic) ic.textContent = isDark ? '☀' : '🌙';
+    if (lb) lb.textContent = isDark ? ' Claro' : ' Escuro';
+  }
+
+  // Inicializa ícone do botão de tema ao carregar a página
+  document.addEventListener('DOMContentLoaded', function() {
+    _atualizarBotaoTema();
+    // Atualiza ícone ao mudar preferência do SO sem reload
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change', function(e) {
+        if (!localStorage.getItem('ranking-theme')) {
+          document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+          _atualizarBotaoTema();
+        }
+      });
+    }
+  });
+
+  // ── CRONOGRAMA: DETALHE POR FILIAL ────────────────────────────────────────
+  function _cronoAbrirDetalheFilial(sigla) {
+    const info = (window._cronoDadosFilial||[]).find(f=>f.filial===sigla);
+    if (!info) return;
+    const auds = CRONO_AUDITORIAS.filter(r=>r.filial===sigla)
+      .slice().sort((a,b)=>a.data.localeCompare(b.data));
+    const titulo = document.getElementById('crono-filial-titulo');
+    const body = document.getElementById('crono-filial-body');
+    if (!titulo||!body) return;
+    titulo.textContent = `${sigla} · ${info.filialNome} — Histórico de Auditorias`;
+    const rows = auds.map(r=>`<tr>
+      <td>${r.dataDisplay||r.data}</td>
+      <td>${r.auditor||info.auditor||'—'}</td>
+      <td>${r.numero||'—'}</td>
+      <td style="text-align:center;font-weight:700;">${r.nota!=null?r.nota:'—'}</td>
+      <td><span style="font-size:11.5px;font-weight:600;color:${_cronoEhFinalizada(r)?'var(--green-dk)':'var(--amber-dk)'};">${_cronoEhFinalizada(r)?'✔ Finalizada':'🔔 Em Andamento'}</span></td>
+    </tr>`).join('') || '<tr><td colspan="5" style="color:var(--text3);padding:14px 6px;text-align:center;">Nenhuma auditoria registrada para esta filial.</td></tr>';
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px;">
+        <div class="kpi b" style="border-top-width:3px;padding:12px 14px;">
+          <div class="kl">Progresso</div><div class="kv">${info.progresso}%</div>
+          <div class="ks">${info.qtd}/${info.meta} auditorias</div>
+        </div>
+        <div class="kpi ${info.noRitmo?'g':'a'}" style="padding:12px 14px;">
+          <div class="kl">Situação</div>
+          <div class="kv" style="font-size:16px;">${info.noRitmo?'✔ No Ritmo':'⚠ Atrasada'}</div>
+          <div class="ks">${info.faltam>0?info.faltam+' faltam para a meta':'meta cumprida'}</div>
+        </div>
+        <div class="kpi" style="padding:12px 14px;">
+          <div class="kl">Nota Média</div>
+          <div class="kv">${info.notaMedia!=null?info.notaMedia:'—'}</div>
+          <div class="ks">nas auditorias do ano</div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;font-size:12px;color:var(--text2);">
+        <strong>Auditor:</strong> ${info.auditor}
+        &nbsp;·&nbsp;<strong>Regional:</strong> ${info.regional}
+        ${info.confianca?'&nbsp;·&nbsp;<span title="Filial de confiança da diretoria — meta reduzida">🤝 Filial de Confiança</span>':''}
+      </div>
+      <table class="rank-table">
+        <thead><tr>
+          <th>Data</th><th>Auditor</th><th>Nº Auditoria</th>
+          <th style="text-align:center;">Nota</th><th>Status</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    document.getElementById('modal-crono-filial').classList.remove('hidden');
   }
 </script>
 </body>
