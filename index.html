@@ -2274,268 +2274,313 @@ function _compCalcDados() {
     if (COMP_REGIONAL && (info.regional||'').toLowerCase() !== COMP_REGIONAL.toLowerCase()) return;
     if (COMP_COORD && (info.coordenador||'').toLowerCase() !== COMP_COORD.toLowerCase()) return;
     if (COMP_FILIAIS_SEL.size && !COMP_FILIAIS_SEL.has(sig)) return;
-
     const avgA = _compOrdinalMedia(sig, anoA, posicoes);
     const avgB = _compOrdinalMedia(sig, anoB, posicoes);
     if (avgA == null && avgB == null) return;
-
     dados.push({
       filial: sig,
       nome: info.loja || sig,
       regional: info.regional || '—',
       coord: info.coordenador || '—',
-      avgA,
-      avgB,
+      avgA, avgB,
       delta: (avgA != null && avgB != null) ? Math.round((avgB - avgA)*10)/10 : null,
-      pct: (avgA != null && avgB != null && avgA !== 0) ? Math.round(((avgB - avgA)/avgA)*1000)/10 : null,
+      pct:   (avgA != null && avgB != null && avgA !== 0) ? Math.round(((avgB-avgA)/avgA)*1000)/10 : null,
     });
   });
   return { dados, anoA, anoB, posicoes };
 }
 
-function _compDesenharGrafico(dados, anoA, anoB) {
-  const canvas = document.getElementById('comp-chart');
+/* ── canvas helpers ───────────────────────────────────────── */
+function _rcRect(ctx, x, y, w, h, r) {
+  if (w <= 0 || h <= 0) return;
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+function _compCV() {
+  const s = getComputedStyle(document.documentElement);
+  const v = n => s.getPropertyValue(n).trim();
+  return {
+    barA:  v('--brand'), barA2: v('--brand-lt'),
+    green: v('--green'), red: v('--red'),
+    grid:  v('--border'), grid2: v('--border2'),
+    axis:  v('--text3'), label: v('--text2'), text: v('--text'),
+    row0:  v('--bg2'), row1: v('--bg3'),
+  };
+}
+
+/* ── Chart 1: Horizontal score comparison ──────────────────── */
+function _compDesenharComparativo(dados, anoA, anoB) {
+  const canvas = document.getElementById('comp-chart-h');
   if (!canvas || !dados.length) return;
   _compCanvas = canvas;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const W = canvas.parentElement.clientWidth - 2;
-  const H = 320;
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width = W + 'px';
-  canvas.style.height = H + 'px';
+  const W = Math.max(canvas.parentElement.clientWidth - 2, 360);
+  const ROW_H = 38, BAR_H = 11, PAIR_GAP = 3;
+  const PAD = { top: 40, right: 60, bottom: 10, left: 82 };
+  const n = dados.length;
+  const H = PAD.top + n * ROW_H + PAD.bottom;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
-
-  const cs = getComputedStyle(document.documentElement);
-  const cv = n => cs.getPropertyValue(n).trim();
-  const C = {
-    barA:  cv('--brand'),
-    grid:  cv('--border'),
-    axis:  cv('--text3'),
-    label: cv('--text2'),
-    text:  cv('--text'),
-    avg:   cv('--border2'),
-    green: cv('--green'),
-    red:   cv('--red'),
-    amber: cv('--amber'),
-    surf:  cv('--bg2'),
-  };
-
-  const PAD = { top:54, right:10, bottom:62, left:44 };
-  const cW = W - PAD.left - PAD.right;
-  const cH = H - PAD.top - PAD.bottom;
-  const n = dados.length;
-  const groupW = cW / n;
-  const BAR = Math.max(6, Math.min(groupW * 0.30, 28));
-  const GAP = groupW * 0.04;
-
-  const vals = dados.flatMap(d => [d.avgA, d.avgB].filter(v => v != null));
-  const maxVal = Math.ceil((Math.max(...vals, 60)) / 10) * 10 + 10;
-  const yS = v => PAD.top + cH - (v / maxVal) * cH;
-
   ctx.clearRect(0, 0, W, H);
+  const C = _compCV();
+  const chartW = W - PAD.left - PAD.right;
+  const xS = v => PAD.left + (Math.max(0, Math.min(100, v)) / 100) * chartW;
 
-  // Grid
-  for (let y = 0; y <= maxVal; y += 20) {
-    const yp = yS(y);
-    ctx.setLineDash(y === 0 ? [] : [4, 5]);
-    ctx.strokeStyle = y === 0 ? C.avg : C.grid;
-    ctx.lineWidth = y === 0 ? 1.5 : 1;
-    ctx.beginPath(); ctx.moveTo(PAD.left, yp); ctx.lineTo(W - PAD.right, yp); ctx.stroke();
+  // vertical grid + score labels
+  [0,20,40,60,80,100].forEach(v => {
+    const x = xS(v);
+    ctx.setLineDash(v===0?[]:[3,5]);
+    ctx.strokeStyle = v===0 ? C.grid2 : C.grid; ctx.lineWidth = v===0?1.5:1;
+    ctx.beginPath(); ctx.moveTo(x, PAD.top-6); ctx.lineTo(x, H - PAD.bottom); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = C.axis; ctx.font = '10px system-ui'; ctx.textAlign = 'right';
-    ctx.fillText(y, PAD.left - 6, yp + 3.5);
-  }
-
-  // Average lines
-  const avgA = dados.filter(d => d.avgA != null).reduce((s,d) => s+d.avgA, 0) / (dados.filter(d => d.avgA != null).length || 1);
-  const avgB = dados.filter(d => d.avgB != null).reduce((s,d) => s+d.avgB, 0) / (dados.filter(d => d.avgB != null).length || 1);
-  [[avgA, C.barA], [avgB, C.green]].forEach(([avg, color], i) => {
-    ctx.setLineDash([6, 5]); ctx.lineWidth = 1.5; ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = color;
-    ctx.beginPath(); ctx.moveTo(PAD.left, yS(avg)); ctx.lineTo(W - PAD.right, yS(avg)); ctx.stroke();
-    ctx.globalAlpha = 1; ctx.setLineDash([]);
-    ctx.fillStyle = color; ctx.font = '9px system-ui'; ctx.textAlign = 'left';
-    ctx.fillText(`Méd.${i===0?'A':'B'}: ${avg.toFixed(1)}`, W - PAD.right + 3, yS(avg) + 4);
+    ctx.fillStyle = C.axis; ctx.font='10px system-ui'; ctx.textAlign='center';
+    ctx.fillText(v, x, PAD.top - 8);
   });
 
-  // Bars
-  dados.forEach((d, i) => {
-    const cx = PAD.left + i * groupW + groupW / 2;
-    const xA = cx - BAR - GAP / 2;
-    const xB = cx + GAP / 2;
-    const barBColor = (d.delta == null || d.delta >= 0) ? C.green : C.red;
-    const base = H - PAD.bottom;
-
-    function bar(x, val, color) {
-      if (val == null) return;
-      const top = yS(val); const h = base - top;
-      if (h <= 0) return;
-      // fill body
-      ctx.fillStyle = color + 'cc';
-      ctx.fillRect(x, top + Math.min(4, h), BAR, Math.max(0, h - Math.min(4, h)));
-      // rounded top cap
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      const r = Math.min(3, BAR/2, h/2);
-      ctx.moveTo(x+r, top); ctx.lineTo(x+BAR-r, top);
-      ctx.quadraticCurveTo(x+BAR, top, x+BAR, top+r);
-      ctx.lineTo(x+BAR, top+Math.min(8,h)); ctx.lineTo(x, top+Math.min(8,h)); ctx.lineTo(x, top+r);
-      ctx.quadraticCurveTo(x, top, x+r, top); ctx.closePath(); ctx.fill();
-      // value label
-      ctx.font = 'bold 9.5px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = color;
-      if (h > 14) ctx.fillText(val.toFixed(1), x + BAR/2, top - 4);
-    }
-
-    bar(xA, d.avgA, C.barA);
-    bar(xB, d.avgB, barBColor);
-
-    // Delta annotation
-    if (d.pct != null) {
-      const topY = Math.min(
-        d.avgA != null ? yS(d.avgA) : 9999,
-        d.avgB != null ? yS(d.avgB) : 9999
-      ) - 14;
-      const sign = d.pct >= 0 ? '+' : '';
-      ctx.font = 'bold 9.5px system-ui'; ctx.textAlign = 'center';
-      ctx.fillStyle = d.pct >= 0 ? C.green : C.red;
-      ctx.fillText(sign + d.pct.toFixed(1) + '%', cx, Math.max(PAD.top - 2, topY));
-    }
-
-    // Filial label
-    ctx.fillStyle = C.label; ctx.font = '600 11px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText(d.filial, cx, base + 15);
-    ctx.fillStyle = C.axis; ctx.font = '9px system-ui';
-    const nm = d.nome.length > 8 ? d.nome.slice(0,7) + '…' : d.nome;
-    ctx.fillText(nm, cx, base + 27);
-  });
+  // Δ% column header
+  ctx.fillStyle = C.axis; ctx.font='bold 9px system-ui'; ctx.textAlign='center';
+  ctx.fillText('Δ %', W - PAD.right + 30, PAD.top - 8);
 
   // Legend
-  const posLabel = [...COMP_POSICOES].sort().map(p => p+'ª').join('+');
-  const lItems = [
-    { label: anoA + ' · ' + posLabel, color: C.barA },
-    { label: anoB + ' · subiu',       color: C.green },
-    { label: anoB + ' · caiu',        color: C.red },
-  ];
-  let lx = PAD.left; const ly = 18;
-  ctx.textAlign = 'left';
-  lItems.forEach(({ label, color }) => {
-    ctx.fillStyle = color; ctx.fillRect(lx, ly - 9, 11, 10);
-    ctx.fillStyle = C.label; ctx.font = '10px system-ui';
-    ctx.fillText(label, lx + 15, ly);
-    lx += ctx.measureText(label).width + 32;
+  const lItems=[{l:'Ano A ('+anoA+')',c:C.barA},{l:'Ano B ('+anoB+') — subiu',c:C.green},{l:'Ano B ('+anoB+') — caiu',c:C.red}];
+  let lx=PAD.left;
+  lItems.forEach(({l,c})=>{
+    ctx.fillStyle=c; ctx.fillRect(lx, 4, 10, 10);
+    ctx.fillStyle=C.label; ctx.font='10px system-ui'; ctx.textAlign='left';
+    ctx.fillText(l, lx+14, 14);
+    lx += ctx.measureText(l).width + 28;
   });
 
-  // Y-axis label
-  ctx.save(); ctx.fillStyle = C.axis; ctx.font = '9.5px system-ui'; ctx.textAlign = 'center';
-  ctx.translate(11, PAD.top + cH/2); ctx.rotate(-Math.PI/2);
-  ctx.fillText('Pontos', 0, 0); ctx.restore();
+  // Rows
+  dados.forEach((d, i) => {
+    const rowY = PAD.top + i * ROW_H;
+    const yC = rowY + ROW_H / 2;
+    const yA = yC - PAIR_GAP/2 - BAR_H;
+    const yB = yC + PAIR_GAP/2;
+
+    // row bg
+    ctx.fillStyle = (i%2===0) ? C.row1 + '55' : 'rgba(0,0,0,0)';
+    ctx.fillRect(0, rowY, W, ROW_H);
+
+    // filial + name label
+    ctx.fillStyle = C.text; ctx.font='bold 11px system-ui'; ctx.textAlign='right';
+    ctx.fillText(d.filial, PAD.left - 6, yA + BAR_H);
+    ctx.fillStyle = C.axis; ctx.font='9px system-ui';
+    const nm = d.nome.length > 9 ? d.nome.slice(0,8)+'…' : d.nome;
+    ctx.fillText(nm, PAD.left - 6, yB + BAR_H);
+
+    // Bar A
+    if (d.avgA != null) {
+      const bw = (d.avgA/100)*chartW;
+      ctx.fillStyle = C.barA + 'cc';
+      _rcRect(ctx, PAD.left, yA, bw, BAR_H, 2); ctx.fill();
+      ctx.fillStyle = bw > 28 ? '#ffffffcc' : C.barA;
+      ctx.font = 'bold 8.5px system-ui';
+      ctx.textAlign = bw > 28 ? 'right' : 'left';
+      ctx.fillText(d.avgA.toFixed(1), bw > 28 ? PAD.left+bw-3 : PAD.left+bw+3, yA+BAR_H-2);
+    }
+
+    // Bar B
+    if (d.avgB != null) {
+      const bColor = (d.delta==null||d.delta>=0) ? C.green : C.red;
+      const bw = (d.avgB/100)*chartW;
+      ctx.fillStyle = bColor + 'cc';
+      _rcRect(ctx, PAD.left, yB, bw, BAR_H, 2); ctx.fill();
+      ctx.fillStyle = bw > 28 ? '#ffffffcc' : bColor;
+      ctx.font = 'bold 8.5px system-ui';
+      ctx.textAlign = bw > 28 ? 'right' : 'left';
+      ctx.fillText(d.avgB.toFixed(1), bw > 28 ? PAD.left+bw-3 : PAD.left+bw+3, yB+BAR_H-2);
+    }
+
+    // Delta label
+    if (d.pct != null) {
+      const sign = d.pct >= 0 ? '+' : '';
+      ctx.fillStyle = d.pct >= 0 ? C.green : C.red;
+      ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(sign+d.pct.toFixed(1)+'%', W - PAD.right + 30, yC + 4);
+    } else {
+      ctx.fillStyle = C.axis; ctx.font='9px system-ui'; ctx.textAlign='center';
+      ctx.fillText('s/par', W - PAD.right + 30, yC + 4);
+    }
+  });
 }
 
+/* ── Chart 2: Diverging delta ranking ─────────────────────── */
+function _compDesenharRanking(dados) {
+  const canvas = document.getElementById('comp-chart-delta');
+  if (!canvas) return;
+  const sorted = [...dados].filter(d=>d.pct!=null).sort((a,b)=>b.pct-a.pct);
+  if (!sorted.length) { canvas.style.display='none'; return; }
+  canvas.style.display='block';
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = Math.max(canvas.parentElement.clientWidth - 2, 200);
+  const ROW_H = 30, BAR_H = 14;
+  const PAD = { top: 38, right: 14, bottom: 10, left: 46 };
+  const H = PAD.top + sorted.length * ROW_H + PAD.bottom;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  const C = _compCV();
+
+  const chartW = W - PAD.left - PAD.right;
+  const midX = PAD.left + chartW / 2;
+  const maxAbs = Math.max(...sorted.map(d=>Math.abs(d.pct)), 5);
+  const xS = v => midX + (v / maxAbs) * (chartW / 2);
+
+  // center line
+  ctx.strokeStyle = C.grid2; ctx.lineWidth = 1.5; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(midX, PAD.top-6); ctx.lineTo(midX, H-PAD.bottom); ctx.stroke();
+
+  // grid at ±half
+  const gridAt = Math.round(maxAbs * 0.5 * 2) / 2;
+  [-gridAt, gridAt].forEach(v => {
+    const x = xS(v);
+    ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.setLineDash([3,4]);
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, H-PAD.bottom); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = C.axis; ctx.font='9px system-ui'; ctx.textAlign='center';
+    ctx.fillText((v>=0?'+':'')+v.toFixed(0)+'%', x, PAD.top - 8);
+  });
+
+  // title
+  ctx.fillStyle = C.axis; ctx.font='bold 9.5px system-ui'; ctx.textAlign='center';
+  ctx.fillText('Ranking de Variação', midX, 18);
+  ctx.fillStyle = C.axis; ctx.font='9px system-ui';
+  ctx.fillText('(Δ% Ano B vs Ano A)', midX, 28);
+
+  // bars
+  sorted.forEach((d, i) => {
+    const rowY = PAD.top + i * ROW_H;
+    const yC = rowY + ROW_H / 2;
+    const yBar = yC - BAR_H / 2;
+
+    ctx.fillStyle = (i%2===0) ? C.row1 + '55' : 'rgba(0,0,0,0)';
+    ctx.fillRect(0, rowY, W, ROW_H);
+
+    // filial label
+    ctx.fillStyle = C.text; ctx.font='bold 10px system-ui'; ctx.textAlign='right';
+    ctx.fillText(d.filial, PAD.left - 5, yC + 4);
+
+    // bar
+    const bColor = d.pct >= 0 ? C.green : C.red;
+    const x0 = d.pct >= 0 ? midX : xS(d.pct);
+    const bw = Math.abs(xS(d.pct) - midX);
+    ctx.fillStyle = bColor + 'dd';
+    _rcRect(ctx, x0, yBar, Math.max(1, bw), BAR_H, 2); ctx.fill();
+
+    // value
+    const sign = d.pct >= 0 ? '+' : '';
+    ctx.fillStyle = bColor; ctx.font='bold 9px system-ui';
+    if (d.pct >= 0) {
+      ctx.textAlign = 'left';
+      ctx.fillText(sign+d.pct.toFixed(1)+'%', x0 + bw + 3, yC + 3);
+    } else {
+      ctx.textAlign = 'right';
+      ctx.fillText(sign+d.pct.toFixed(1)+'%', x0 - 3, yC + 3);
+    }
+  });
+}
+
+/* ── Export PNG ───────────────────────────────────────────── */
 function _compExportarPNG() {
-  if (!_compCanvas) return;
+  const c = _compCanvas || document.getElementById('comp-chart-h');
+  if (!c) return;
   const link = document.createElement('a');
   link.download = 'comparativo-auditorias.png';
-  link.href = _compCanvas.toDataURL('image/png');
+  link.href = c.toDataURL('image/png');
   link.click();
 }
 
+/* ── Main render ──────────────────────────────────────────── */
 function renderAbaComparativo() {
   const c = document.getElementById('conteudo-abas');
-
   if (!CRONO_AUDITORIAS.length) {
-    c.innerHTML = `<div class="info-bar" style="max-width:680px;margin:32px auto;text-align:center;">
-      <div style="font-size:20px;margin-bottom:10px;">📊</div>
+    c.innerHTML = `<div class="info-bar" style="max-width:640px;margin:32px auto;text-align:center;">
+      <div style="font-size:28px;margin-bottom:10px;">📊</div>
       <strong>Nenhum dado de cronograma carregado</strong><br>
       <span style="font-size:12px;">Acesse a aba <strong>🗓 Cronograma</strong> e importe a planilha de auditorias para habilitar o comparativo.</span>
     </div>`;
     return;
   }
-
   const anos = _compAnosDisponiveis();
-  if (!COMP_ANO_A) COMP_ANO_A = anos.length >= 2 ? anos[anos.length - 2] : anos[0];
-  if (!COMP_ANO_B) COMP_ANO_B = anos[anos.length - 1];
+  if (!COMP_ANO_A) COMP_ANO_A = anos.length >= 2 ? anos[anos.length-2] : anos[0];
+  if (!COMP_ANO_B) COMP_ANO_B = anos[anos.length-1];
 
-  const regionais = [...new Set(Object.values(BASE_FILIAIS).map(f => f.regional).filter(Boolean))].sort();
-  const coords    = [...new Set(Object.values(BASE_FILIAIS).map(f => f.coordenador).filter(Boolean))].sort();
+  const regionais = [...new Set(Object.values(BASE_FILIAIS).map(f=>f.regional).filter(Boolean))].sort();
+  const coords    = [...new Set(Object.values(BASE_FILIAIS).map(f=>f.coordenador).filter(Boolean))].sort();
   const filiaisDisp = _compFiliaisDisponiveis();
 
   const posLabel = p => ['','1ª','2ª','3ª','4ª'][p]||p+'ª';
-  const posChecks = [1,2,3,4].map(p =>
-    `<label style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;padding:5px 10px;border-radius:5px;background:${COMP_POSICOES.has(p)?'var(--brand-lt)':'var(--bg3)'};border:1px solid ${COMP_POSICOES.has(p)?'var(--brand)':'var(--border)'};color:${COMP_POSICOES.has(p)?'var(--brand-dk)':'var(--text2)'};">
-      <input type="checkbox" ${COMP_POSICOES.has(p)?'checked':''} onchange="_compTogglePos(${p})" style="accent-color:var(--brand);">
+  const posChecks = [1,2,3,4].map(p => {
+    const on = COMP_POSICOES.has(p);
+    return `<label style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;
+      padding:5px 11px;border-radius:5px;user-select:none;
+      background:${on?'var(--brand-lt)':'var(--bg3)'};
+      border:1px solid ${on?'var(--brand)':'var(--border)'};
+      color:${on?'var(--brand-dk)':'var(--text2)'};">
+      <input type="checkbox" ${on?'checked':''} onchange="_compTogglePos(${p})" style="accent-color:var(--brand);">
       ${posLabel(p)}
-    </label>`
-  ).join('');
-
-  const anoOpts = anos.map(a =>
-    `<option value="${a}" ${COMP_ANO_A===a?'selected':''}>${a}</option>`
-  ).join('');
-  const anoBOpts = anos.map(a =>
-    `<option value="${a}" ${COMP_ANO_B===a?'selected':''}>${a}</option>`
-  ).join('');
-
-  const filOpts = filiaisDisp.map(s => {
-    const info = BASE_FILIAIS[s] || {};
-    return `<option value="${s}" ${COMP_FILIAIS_SEL.has(s)?'selected':''}>${s} — ${info.loja||s}</option>`;
+    </label>`;
   }).join('');
 
   c.innerHTML = `
 <div class="secao">
-  <div class="secao-titulo">Filtros</div>
-  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">
-
-    <div style="display:flex;flex-direction:column;gap:5px;">
-      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Ano A (Referência)</label>
-      <select class="sel-sm" id="comp-ano-a" onchange="_compSetAno('a',this.value)">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+    padding:14px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Ano A (Base)</label>
+      <select class="sel-sm" onchange="_compSetAno('a',this.value)">
         ${anos.map(a=>`<option value="${a}" ${COMP_ANO_A===a?'selected':''}>${a}</option>`).join('')}
       </select>
     </div>
-
-    <div style="display:flex;flex-direction:column;gap:5px;">
+    <div style="display:flex;flex-direction:column;gap:4px;">
       <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Ano B (Comparativo)</label>
-      <select class="sel-sm" id="comp-ano-b" onchange="_compSetAno('b',this.value)">
+      <select class="sel-sm" onchange="_compSetAno('b',this.value)">
         ${anos.map(a=>`<option value="${a}" ${COMP_ANO_B===a?'selected':''}>${a}</option>`).join('')}
       </select>
     </div>
-
-    <div style="display:flex;flex-direction:column;gap:5px;">
-      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Auditorias a comparar</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">${posChecks}</div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Posição ordinal</label>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;">${posChecks}</div>
     </div>
-
-    <div style="display:flex;flex-direction:column;gap:5px;">
+    <div style="display:flex;flex-direction:column;gap:4px;">
       <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Regional</label>
       <select class="sel-sm" onchange="_compSetFiltro('regional',this.value)">
         <option value="">Todas</option>
         ${regionais.map(r=>`<option value="${r}" ${COMP_REGIONAL===r?'selected':''}>${r}</option>`).join('')}
       </select>
     </div>
-
-    <div style="display:flex;flex-direction:column;gap:5px;">
+    <div style="display:flex;flex-direction:column;gap:4px;">
       <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Coordenador</label>
       <select class="sel-sm" onchange="_compSetFiltro('coord',this.value)">
         <option value="">Todos</option>
         ${coords.map(r=>`<option value="${r}" ${COMP_COORD===r?'selected':''}>${r}</option>`).join('')}
       </select>
     </div>
-
-    <div style="display:flex;flex-direction:column;gap:5px;">
-      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Filiais</label>
-      <select class="sel-sm" multiple size="3" id="comp-fil-sel" onchange="_compSetFiliais(this)"
-        style="min-width:160px;max-height:80px;">
-        ${filOpts}
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Filiais <span style="font-weight:400;font-size:10px;">(ctrl+clique)</span></label>
+      <select class="sel-sm" multiple size="3" id="comp-fil-sel"
+        onchange="_compSetFiliais(this)" style="min-width:150px;max-height:76px;">
+        ${filiaisDisp.map(s=>{const info=BASE_FILIAIS[s]||{};return`<option value="${s}" ${COMP_FILIAIS_SEL.has(s)?'selected':''}>${s} — ${info.loja||s}</option>`;}).join('')}
       </select>
-      <span style="font-size:10px;color:var(--text3);">Ctrl+clique p/ múltiplas · vazio = todas</span>
     </div>
-
-    <div style="margin-left:auto;display:flex;align-items:flex-end;">
-      <button class="btn-topo" onclick="_compLimparFiltros()" title="Limpar filtros">↺ Limpar</button>
+    <div style="margin-left:auto;align-self:flex-end;">
+      <button class="btn-topo" onclick="_compLimparFiltros()" title="Resetar filtros">↺ Limpar</button>
     </div>
   </div>
 </div>
-
 <div id="comp-corpo"></div>`;
 
   _compRenderCorpo();
@@ -2543,22 +2588,18 @@ function renderAbaComparativo() {
 
 function _compSetAno(ab, val) {
   const v = parseInt(val);
-  if (ab === 'a') COMP_ANO_A = v; else COMP_ANO_B = v;
+  if (ab==='a') COMP_ANO_A=v; else COMP_ANO_B=v;
   _compRenderCorpo();
 }
 
 function _compTogglePos(p) {
-  if (COMP_POSICOES.has(p)) {
-    if (COMP_POSICOES.size > 1) COMP_POSICOES.delete(p);
-  } else {
-    COMP_POSICOES.add(p);
-  }
+  if (COMP_POSICOES.has(p)) { if (COMP_POSICOES.size>1) COMP_POSICOES.delete(p); }
+  else COMP_POSICOES.add(p);
   renderAbaComparativo();
 }
 
 function _compSetFiltro(key, val) {
-  if (key === 'regional') COMP_REGIONAL = val;
-  else if (key === 'coord') COMP_COORD = val;
+  if (key==='regional') COMP_REGIONAL=val; else if (key==='coord') COMP_COORD=val;
   _compRenderCorpo();
 }
 
@@ -2568,110 +2609,115 @@ function _compSetFiliais(sel) {
 }
 
 function _compLimparFiltros() {
-  COMP_REGIONAL = ''; COMP_COORD = '';
-  COMP_FILIAIS_SEL = new Set();
-  COMP_POSICOES = new Set([1,2]);
-  const anos = _compAnosDisponiveis();
-  COMP_ANO_A = anos.length >= 2 ? anos[anos.length-2] : anos[0];
-  COMP_ANO_B = anos[anos.length-1];
+  COMP_REGIONAL=''; COMP_COORD=''; COMP_FILIAIS_SEL=new Set(); COMP_POSICOES=new Set([1,2]);
+  const a=_compAnosDisponiveis();
+  COMP_ANO_A = a.length>=2 ? a[a.length-2] : a[0];
+  COMP_ANO_B = a[a.length-1];
   renderAbaComparativo();
 }
 
 function _compSortTabela(col) {
-  if (COMP_SORT.col === col) COMP_SORT.dir *= -1;
-  else { COMP_SORT.col = col; COMP_SORT.dir = 1; }
+  if (COMP_SORT.col===col) COMP_SORT.dir*=-1; else { COMP_SORT.col=col; COMP_SORT.dir=1; }
   _compRenderCorpo();
 }
 
 function _compRenderCorpo() {
   const corpo = document.getElementById('comp-corpo');
   if (!corpo) return;
-
   const { dados, anoA, anoB, posicoes } = _compCalcDados();
 
   if (!dados.length) {
-    corpo.innerHTML = `<div class="info-bar" style="margin-top:16px;">Nenhuma filial com dados suficientes para o filtro selecionado — tente ampliar a seleção de posições ou anos.</div>`;
+    corpo.innerHTML=`<div class="info-bar" style="margin-top:12px;">Nenhuma filial com dados suficientes para o filtro selecionado. Tente ampliar as posições ordinais ou verificar se os dados foram importados.</div>`;
     return;
   }
 
-  // KPIs
-  const comAmbos = dados.filter(d => d.avgA != null && d.avgB != null);
+  const comAmbos = dados.filter(d=>d.avgA!=null&&d.avgB!=null);
   const mediaA = comAmbos.length ? Math.round(comAmbos.reduce((s,d)=>s+d.avgA,0)/comAmbos.length*10)/10 : null;
   const mediaB = comAmbos.length ? Math.round(comAmbos.reduce((s,d)=>s+d.avgB,0)/comAmbos.length*10)/10 : null;
-  const varGeral = (mediaA && mediaB && mediaA!==0) ? Math.round(((mediaB-mediaA)/mediaA)*1000)/10 : null;
-  const melhor = comAmbos.length ? comAmbos.reduce((a,b)=>(b.pct||0)>(a.pct||0)?b:a, comAmbos[0]) : null;
-  const pior   = comAmbos.length ? comAmbos.reduce((a,b)=>(b.pct||0)<(a.pct||0)?b:a, comAmbos[0]) : null;
-
+  const varGeral = (mediaA&&mediaB&&mediaA!==0) ? Math.round(((mediaB-mediaA)/mediaA)*1000)/10 : null;
+  const melhor = comAmbos.length ? comAmbos.reduce((a,b)=>(b.pct||0)>(a.pct||0)?b:a,comAmbos[0]) : null;
+  const pior   = comAmbos.length ? comAmbos.reduce((a,b)=>(b.pct||0)<(a.pct||0)?b:a,comAmbos[0]) : null;
   const sinal = v => v>=0?'+':'';
-  const kpiVarClass = varGeral===null?'b':varGeral>=0?'g':'r';
+  const kpiVC = varGeral===null?'b':varGeral>=0?'g':'r';
+  const posLbl = posicoes.map(p=>['','1ª','2ª','3ª','4ª'][p]||p+'ª').join(' + ');
 
-  const posLabel = posicoes.map(p=>['','1ª','2ª','3ª','4ª'][p]||p+'ª').join(' + ');
+  // Sort for table
+  const tableSorted = [...dados].sort((a,b)=>{
+    const col=COMP_SORT.col, va=a[col]??'', vb=b[col]??'';
+    return (typeof va==='number'&&typeof vb==='number' ? (va-vb) : String(va).localeCompare(String(vb))) * COMP_SORT.dir;
+  });
+
+  const si = col => COMP_SORT.col===col ? (COMP_SORT.dir===1?'↑':'↓') : '';
 
   corpo.innerHTML = `
-<div class="kpi-grid secao" style="margin-bottom:20px;">
-  <div class="kpi b"><div class="kl">Média ${anoA}</div><div class="kv">${mediaA??'—'}</div><div class="ks">${posLabel} · ${comAmbos.length} filial(is)</div></div>
-  <div class="kpi b"><div class="kl">Média ${anoB}</div><div class="kv">${mediaB??'—'}</div><div class="ks">${posLabel} · ${comAmbos.length} filial(is)</div></div>
-  <div class="kpi ${kpiVarClass}"><div class="kl">Variação Geral</div><div class="kv">${varGeral!==null?sinal(varGeral)+varGeral+'%':'—'}</div><div class="ks">${varGeral!==null?sinal(mediaB-mediaA)+(mediaB-mediaA).toFixed(1)+' ponto(s) médio':'sem dados'}</div></div>
+<div class="kpi-grid secao" style="margin-bottom:18px;">
+  <div class="kpi b"><div class="kl">Média ${anoA}</div><div class="kv">${mediaA??'—'}</div><div class="ks">${posLbl} · ${comAmbos.length} filial(is)</div></div>
+  <div class="kpi b"><div class="kl">Média ${anoB}</div><div class="kv">${mediaB??'—'}</div><div class="ks">${posLbl} · ${comAmbos.length} filial(is)</div></div>
+  <div class="kpi ${kpiVC}"><div class="kl">Variação Geral</div><div class="kv">${varGeral!==null?sinal(varGeral)+varGeral+'%':'—'}</div><div class="ks">${varGeral!==null?sinal(mediaB-mediaA)+(mediaB-mediaA).toFixed(1)+' pts médio':''}</div></div>
   ${melhor&&melhor.pct!=null?`<div class="kpi g"><div class="kl">Maior Melhoria</div><div class="kv">${sinal(melhor.pct)+melhor.pct}%</div><div class="ks">${melhor.filial} · ${sinal(melhor.delta)+melhor.delta} pts</div></div>`:''}
   ${pior&&pior.pct!=null&&pior.pct<0?`<div class="kpi r"><div class="kl">Maior Queda</div><div class="kv">${pior.pct}%</div><div class="ks">${pior.filial} · ${pior.delta} pts</div></div>`:''}
 </div>
 
-<div class="secao">
-  <div class="secao-titulo">Gráfico comparativo — ${posLabel} · ${anoA} vs ${anoB}</div>
-  <div class="chart-card" style="padding:16px;overflow-x:auto;">
-    <canvas id="comp-chart" style="display:block;width:100%;min-width:${Math.max(520, dados.length*52)}px;"></canvas>
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-bottom:20px;">
+
+  <div class="chart-card" style="flex:1;min-width:320px;padding:14px 16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div class="chart-title" style="margin:0;">Comparativo de Pontuação — ${posLbl} · ${anoA} vs ${anoB}</div>
+      <button class="btn-topo primary" onclick="_compExportarPNG()" style="padding:5px 10px;font-size:11px;flex-shrink:0;">⬇ PNG</button>
+    </div>
+    <div style="overflow-y:auto;max-height:520px;overflow-x:hidden;">
+      <canvas id="comp-chart-h" style="display:block;"></canvas>
+    </div>
   </div>
-  <div style="display:flex;justify-content:flex-end;margin-top:8px;">
-    <button class="btn-topo primary" onclick="_compExportarPNG()" title="Exportar gráfico como PNG sem fundo">⬇ Exportar PNG</button>
+
+  <div class="chart-card" style="width:min(260px,100%);flex-shrink:0;padding:14px 12px;">
+    <div style="overflow-y:auto;max-height:520px;overflow-x:hidden;">
+      <canvas id="comp-chart-delta" style="display:block;"></canvas>
+    </div>
   </div>
+
 </div>
 
 <div class="secao">
-  <div class="secao-titulo">Tabela de resultados — clique no cabeçalho para ordenar</div>
+  <div class="secao-titulo">Tabela de Resultados <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;">— clique no cabeçalho para ordenar</span></div>
   <div class="rank-wrap">
     <table class="rank-table">
       <thead><tr>
-        <th onclick="_compSortTabela('filial')" class="sortavel">Filial ${COMP_SORT.col==='filial'?(COMP_SORT.dir===1?'↑':'↓'):''}</th>
-        <th onclick="_compSortTabela('regional')" class="sortavel">Regional ${COMP_SORT.col==='regional'?(COMP_SORT.dir===1?'↑':'↓'):''}</th>
-        <th onclick="_compSortTabela('coord')" class="sortavel">Coordenador ${COMP_SORT.col==='coord'?(COMP_SORT.dir===1?'↑':'↓'):''}</th>
-        <th onclick="_compSortTabela('avgA')" class="sortavel" style="text-align:center;">Média ${anoA} ${COMP_SORT.col==='avgA'?(COMP_SORT.dir===1?'↑':'↓'):''}</th>
-        <th onclick="_compSortTabela('avgB')" class="sortavel" style="text-align:center;">Média ${anoB} ${COMP_SORT.col==='avgB'?(COMP_SORT.dir===1?'↑':'↓'):''}</th>
-        <th onclick="_compSortTabela('delta')" class="sortavel" style="text-align:center;">Δ Pts ${COMP_SORT.col==='delta'?(COMP_SORT.dir===1?'↑':'↓'):''}</th>
-        <th onclick="_compSortTabela('pct')" class="sortavel" style="text-align:center;">Δ % ${COMP_SORT.col==='pct'?(COMP_SORT.dir===1?'↑':'↓'):''}</th>
+        <th onclick="_compSortTabela('filial')" class="sortavel">Filial ${si('filial')}</th>
+        <th onclick="_compSortTabela('regional')" class="sortavel">Regional ${si('regional')}</th>
+        <th onclick="_compSortTabela('coord')" class="sortavel">Coordenador ${si('coord')}</th>
+        <th onclick="_compSortTabela('avgA')" class="sortavel" style="text-align:center;">Média ${anoA} ${si('avgA')}</th>
+        <th onclick="_compSortTabela('avgB')" class="sortavel" style="text-align:center;">Média ${anoB} ${si('avgB')}</th>
+        <th onclick="_compSortTabela('delta')" class="sortavel" style="text-align:center;">Δ Pts ${si('delta')}</th>
+        <th onclick="_compSortTabela('pct')" class="sortavel" style="text-align:center;">Δ % ${si('pct')}</th>
       </tr></thead>
       <tbody>
-        ${_compTabelaRows(dados)}
+        ${tableSorted.map(d=>{
+          const dc=d.delta==null?'':d.delta>0?'comp-ok':d.delta<0?'comp-bad':'';
+          const pc=d.pct==null?'':d.pct>0?'comp-ok':d.pct<0?'comp-bad':'';
+          const sg=v=>v!=null&&v>=0?'+':'';
+          return `<tr>
+            <td><b>${d.filial}</b><br><span style="font-size:11px;color:var(--text3)">${d.nome}</span></td>
+            <td style="font-size:12px;">${d.regional}</td>
+            <td style="font-size:12px;">${d.coord}</td>
+            <td style="text-align:center;font-weight:700;">${d.avgA??'—'}</td>
+            <td style="text-align:center;font-weight:700;">${d.avgB??'—'}</td>
+            <td style="text-align:center;" class="${dc}">${d.delta!=null?sg(d.delta)+d.delta:'—'}</td>
+            <td style="text-align:center;" class="${pc}">${d.pct!=null?sg(d.pct)+d.pct+'%':'—'}</td>
+          </tr>`;
+        }).join('')}
       </tbody>
     </table>
   </div>
 </div>`;
 
-  requestAnimationFrame(() => _compDesenharGrafico(dados, anoA, anoB));
-}
-
-function _compTabelaRows(dados) {
-  const sorted = [...dados].sort((a, b) => {
-    const col = COMP_SORT.col;
-    const va = a[col]??'', vb = b[col]??'';
-    if (typeof va === 'number' && typeof vb === 'number') return (va-vb)*COMP_SORT.dir;
-    return String(va).localeCompare(String(vb)) * COMP_SORT.dir;
+  requestAnimationFrame(() => {
+    _compDesenharComparativo(dados, anoA, anoB);
+    _compDesenharRanking(dados);
   });
-
-  return sorted.map((d,i) => {
-    const dCls = d.delta==null?'':d.delta>0?'comp-ok':d.delta<0?'comp-bad':'';
-    const pCls = d.pct==null?'':d.pct>0?'comp-ok':d.pct<0?'comp-bad':'';
-    const sinal = v => v!=null&&v>=0?'+':'';
-    return `<tr>
-      <td><b>${d.filial}</b><br><span style="font-size:11px;color:var(--text3)">${d.nome}</span></td>
-      <td style="font-size:12px;">${d.regional}</td>
-      <td style="font-size:12px;">${d.coord}</td>
-      <td style="text-align:center;font-weight:700;">${d.avgA??'—'}</td>
-      <td style="text-align:center;font-weight:700;">${d.avgB??'—'}</td>
-      <td style="text-align:center;" class="${dCls}">${d.delta!=null?sinal(d.delta)+d.delta:'—'}</td>
-      <td style="text-align:center;" class="${pCls}">${d.pct!=null?sinal(d.pct)+d.pct+'%':'—'}</td>
-    </tr>`;
-  }).join('');
 }
+
+
 
 // ---------- ABA GUIA DE REGRAS ----------
 function renderAbaGuia() {
