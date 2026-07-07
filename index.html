@@ -2567,6 +2567,13 @@ function _compExportarPNG() {
   const { dados, anoA, anoB, posicoes } = _compCalcDados();
   if (!dados.length) { alert('Sem dados para exportar.'); return; }
 
+  // Apply the same sort that is active on the live chart
+  const dr = [...dados];
+  if      (COMP_CHART_SORT === 'pct_desc') dr.sort((a,b) => (b.pct ?? -9999) - (a.pct ?? -9999));
+  else if (COMP_CHART_SORT === 'pct_asc')  dr.sort((a,b) => (a.pct ?? 9999)  - (b.pct ?? 9999));
+  else                                      dr.sort((a,b) => (a.numero ?? 9999) - (b.numero ?? 9999));
+  const sortLbl = COMP_CHART_SORT === 'pct_desc' ? 'maior variação → menor' : COMP_CHART_SORT === 'pct_asc' ? 'menor variação → maior' : 'Nº filial';
+
   const PL = p => ['','1ª','2ª','3ª','4ª','5ª','6ª'][p]||p+'ª';
   const posLbl = posicoes.map(PL).join(' + ');
 
@@ -2580,7 +2587,7 @@ function _compExportarPNG() {
   const CHART_PL = 92, CHART_PR = 68;
   const ROW_H = 36, BAR_H = 11, PAIR_GAP = 3;
   const LEGEND_H = 38;
-  const n = dados.length;
+  const n = dr.length;
   const CHART_INNER_H = LEGEND_H + n * ROW_H + 6;
   const FOOTER_H = 40;
   const EH = HEADER_H + KPI_H + CHART_INNER_H + FOOTER_H;
@@ -2652,10 +2659,10 @@ function _compExportarPNG() {
   ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = `13px ${FONT}`;
   ctx.fillText(`Posição: ${posLbl}  ·  Anos: ${anoA} vs ${anoB}  ·  Regional: ${regLbl}  ·  Auditor: ${audLbl}  ·  Filiais: ${filLbl}`, textX, 70);
   ctx.font = `12px ${FONT}`; ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.fillText(`* Auditórias "Em andamento" excluídas  ·  Ordenação ordinal por Nº sequencial dentro de cada filial+ano`, textX, 92);
+  ctx.fillText(`* Auditórias "Em andamento" excluídas  ·  Ordenado por: ${sortLbl}`, textX, 92);
 
   // ── KPI ROW ──────────────────────────────────────────────
-  const comAmbos = dados.filter(d=>d.avgA!=null&&d.avgB!=null);
+  const comAmbos = dr.filter(d=>d.avgA!=null&&d.avgB!=null);
   const mediaA = comAmbos.length ? Math.round(comAmbos.reduce((s,d)=>s+d.avgA,0)/comAmbos.length*10)/10 : null;
   const mediaB = comAmbos.length ? Math.round(comAmbos.reduce((s,d)=>s+d.avgB,0)/comAmbos.length*10)/10 : null;
   const varG   = (mediaA&&mediaB&&mediaA!==0) ? Math.round(((mediaB-mediaA)/mediaA)*1000)/10 : null;
@@ -2731,8 +2738,8 @@ function _compExportarPNG() {
   ctx.fillStyle=C.text3; ctx.font=`bold 10px ${FONT}`; ctx.textAlign='center';
   ctx.fillText('Δ %', EW-PX.r-CHART_PR/2, chartTopY+LEGEND_H-8);
 
-  // Data rows
-  dados.forEach((d, i) => {
+  // Data rows — drawn in dr order (same sort as live chart)
+  dr.forEach((d, i) => {
     const rowY = chartTopY + LEGEND_H + i * ROW_H;
     const yC = rowY + ROW_H/2;
     const yA = yC - PAIR_GAP/2 - BAR_H;
@@ -2874,7 +2881,13 @@ function _compLimparDados() {
 function _compExportarRanking() {
   const { dados, anoA, anoB, posicoes } = _compCalcDados();
   if (!dados.length) { alert('Sem dados para exportar.'); return; }
-  const sorted = [...dados].filter(d=>d.pct!=null).sort((a,b)=>b.pct-a.pct);
+  // Mirror the active chart sort
+  const base = [...dados].filter(d=>d.pct!=null);
+  if (COMP_CHART_SORT === 'pct_asc')  base.sort((a,b) => a.pct - b.pct);
+  else if (COMP_CHART_SORT === 'numero') base.sort((a,b) => (a.numero ?? 9999) - (b.numero ?? 9999));
+  else                                   base.sort((a,b) => b.pct - a.pct);
+  const sorted = base;
+  const sortLblRank = COMP_CHART_SORT === 'pct_asc' ? 'menor variação → maior' : COMP_CHART_SORT === 'numero' ? 'Nº filial' : 'maior melhoria → maior queda';
   if (!sorted.length) { alert('Sem dados de variação disponíveis.'); return; }
 
   const FONT = '"Segoe UI", Arial, sans-serif';
@@ -2936,7 +2949,7 @@ function _compExportarRanking() {
   ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = `12px ${FONT}`;
   ctx.fillText(`${anoB} vs ${anoA}  ·  Posição: ${posLbl}  ·  ${n} filial(is) com variação`, lx0, 60);
   ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = `10.5px ${FONT}`;
-  ctx.fillText('Ordenado: maior melhoria → maior queda', lx0, 78);
+  ctx.fillText(`Ordenado por: ${sortLblRank}`, lx0, 78);
 
   // Chart
   const chartTopY = PAD.t;
@@ -3035,9 +3048,14 @@ function _compExportarTabela() {
     { key:'pct',      label:'Δ %',            always:false },
   ];
   const exportCols = COLS.filter(c => c.always || COMP_COLUNAS.has(c.key));
+  // Sort by active table sort state
+  const sortedForCSV = [...dados].sort((a,b) => {
+    const col = COMP_SORT.col, va = a[col]??'', vb = b[col]??'';
+    return (typeof va==='number'&&typeof vb==='number' ? va-vb : String(va).localeCompare(String(vb))) * COMP_SORT.dir;
+  });
   const sg = v => v != null && v >= 0 ? '+' : '';
   const header = exportCols.map(c => c.label);
-  const rows = dados.map(d => exportCols.map(c => {
+  const rows = sortedForCSV.map(d => exportCols.map(c => {
     if (c.key === 'delta') return d.delta != null ? sg(d.delta) + d.delta : '';
     if (c.key === 'pct')   return d.pct   != null ? sg(d.pct)   + d.pct + '%' : '';
     return d[c.key] ?? '';
@@ -3828,17 +3846,38 @@ function exportarRankingXLS() {
   const wb=XLSX.utils.book_new();
   const dt=new Date().toLocaleDateString('pt-BR').split('/').join('-');
 
-  // Aba Anual
-  const anual=ordenarComDesempate(consolidarAnual(REGISTROS),'mediaScore');
+  // Aba Anual — respeita filtros ativos na aba Anual (se estiver visível)
+  const buscaAnual=(document.getElementById('busca-anual')?.value||'').toLowerCase();
+  const fRegAnual=document.getElementById('fil-regional-anual')?.value||'';
+  const fAudAnual=document.getElementById('fil-auditor-anual')?.value||'';
+  const fRegiaoAnual=document.getElementById('fil-regiao-anual')?.value||'';
+  let anual=ordenarComDesempate(consolidarAnual(REGISTROS),'mediaScore').filter(r=>{
+    if(buscaAnual && !r.filial.toLowerCase().includes(buscaAnual)&&!r.filialNome.toLowerCase().includes(buscaAnual)&&!(r.supervisor||'').toLowerCase().includes(buscaAnual)) return false;
+    if(fRegAnual && r.regional!==fRegAnual) return false;
+    if(fAudAnual && r.auditor!==fAudAnual) return false;
+    if(fRegiaoAnual && r.regiao!==fRegiaoAnual) return false;
+    return true;
+  });
   const h1=['#','Filial','Nome','Supervisor','Regional','Auditor','Auditorias','Score Médio','Score Máx','Score Mín','Desvio','Regularidade','Reincidente Vencidos','Última Auditoria'];
   const r1=[h1,...anual.map((r,i)=>[i+1,r.filial,r.filialNome,r.supervisor,r.regional,r.auditor,r.auditorias,r.mediaScore,r.maxScore,r.minScore,r.desvio,r.regularidade,r.reincidente?'SIM':'não',r.ultimaData])];
   const ws1=XLSX.utils.aoa_to_sheet(r1);
   ws1['!cols']=[{wch:4},{wch:8},{wch:20},{wch:18},{wch:18},{wch:14},{wch:16},{wch:11},{wch:12},{wch:10},{wch:10},{wch:9},{wch:13},{wch:18},{wch:16}];
   XLSX.utils.book_append_sheet(wb,ws1,'Ranking Anual');
 
-  // Aba Por Período
+  // Aba Por Período — respeita filtros ativos na aba Por Período
+  const perSel=window._perSel||'';
+  const buscaPer=(document.getElementById('busca-per')?.value||'').toLowerCase();
+  const tipoPer=document.getElementById('fil-tipo-per')?.value||'';
+  const periodData=REGISTROS.filter(r=>{
+    if(perSel && r.periodo!==perSel) return false;
+    if(buscaPer && !r.filial.toLowerCase().includes(buscaPer)&&!r.filialNome.toLowerCase().includes(buscaPer)) return false;
+    if(tipoPer==='completo'&&!(r.temPed&&r.temVenc)) return false;
+    if(tipoPer==='ped'&&!r.temPed) return false;
+    if(tipoPer==='venc'&&!r.temVenc) return false;
+    return true;
+  }).sort((a,b)=>b.scoreFinal-a.scoreFinal);
   const h2=['Filial','Nome','Período','Supervisor','Regional','Score Final','Bônus','Semente','Pedido','Vencidos','Canhoto','%Ped','%Can','Sem.Pend','Vlr Vencidos','Faturamento','%Venc/Fat','Observação','Dados'];
-  const r2=[h2,...REGISTROS.sort((a,b)=>b.scoreFinal-a.scoreFinal).map(r=>[
+  const r2=[h2,...periodData.map(r=>[
     r.filial,r.filialNome,r.periodo,r.supervisor,r.regional,r.scoreFinal,r.bonus,r.sSem,r.sPed,r.sVenc,r.sCan,
     r.pctPed,r.pctCan,r.semPend,r.valorVencidos,r.faturamento>0?r.faturamento:'',r.pctVencFat!=null?parseFloat(r.pctVencFat.toFixed(4)):'',r.obs||'',
     r.temPed&&r.temVenc?'Completo':r.temPed?'Ped/Can':'Vencidos'])];
