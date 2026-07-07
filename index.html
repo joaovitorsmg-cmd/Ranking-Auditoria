@@ -183,6 +183,45 @@ body{font-family:var(--fonte);background:var(--bg);color:var(--text);font-size:1
 .comp-val{display:inline-block;font-size:11px;font-weight:700;}
 .comp-ok{color:var(--green-dk);} .comp-warn{color:var(--amber-dk);} .comp-bad{color:var(--red-dk);}
 
+/* Comparativo — analysis cards */
+.comp-analise-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:11px;margin-bottom:16px;}
+.comp-analise-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:15px 17px 13px;
+  border-left:4px solid var(--border2);cursor:pointer;transition:transform .12s,box-shadow .12s;}
+.comp-analise-card:hover{transform:translateY(-2px);box-shadow:var(--sh-md);}
+.comp-analise-card.cg{border-left-color:var(--green);}
+.comp-analise-card.cr{border-left-color:var(--red);}
+.comp-analise-card.ca{border-left-color:var(--amber);}
+.comp-analise-card.cb{border-left-color:var(--brand);}
+.comp-analise-card.ativa.cg{background:var(--green-lt);}
+.comp-analise-card.ativa.cr{background:var(--red-lt);}
+.comp-analise-card.ativa.ca{background:var(--amber-lt);}
+.comp-analise-card.ativa.cb{background:var(--brand-lt);}
+.comp-analise-num{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1.15;margin:5px 0 3px;}
+.comp-analise-card.cg .comp-analise-num{color:var(--green-dk);}
+.comp-analise-card.cr .comp-analise-num{color:var(--red-dk);}
+.comp-analise-card.ca .comp-analise-num{color:var(--amber-dk);}
+.comp-analise-card.cb .comp-analise-num{color:var(--brand-dk);}
+.comp-analise-card.ativa.cg .comp-analise-num{color:var(--green-dk);}
+.comp-analise-card.ativa.cr .comp-analise-num{color:var(--red-dk);}
+.comp-analise-card.ativa.ca .comp-analise-num{color:var(--amber-dk);}
+.comp-analise-card.ativa.cb .comp-analise-num{color:var(--brand-dk);}
+.comp-detalhe-bloco{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);
+  padding:12px 16px;margin-bottom:18px;}
+/* Comparativo — filial chips */
+.comp-chip{padding:3px 10px;border-radius:11px;font-size:11.5px;font-weight:600;cursor:pointer;
+  background:var(--bg3);border:1px solid var(--border);color:var(--text2);transition:.1s;white-space:nowrap;line-height:1.6;}
+.comp-chip:hover{border-color:var(--border2);color:var(--text);}
+.comp-chip.ativo{background:var(--brand-lt);border-color:var(--brand);color:var(--brand-dk);}
+/* Comparativo — column picker summary reset */
+.comp-col-picker{position:relative;display:inline-block;}
+.comp-col-picker>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;
+  padding:5px 9px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg2);
+  color:var(--text2);font-size:12px;font-weight:500;transition:.12s;}
+.comp-col-picker>summary:hover{border-color:var(--border2);color:var(--text);}
+.comp-col-picker>summary::-webkit-details-marker{display:none;}
+.comp-col-panel{position:absolute;right:0;top:calc(100% + 4px);z-index:400;background:var(--bg2);
+  border:1px solid var(--border2);border-radius:9px;padding:10px 14px;min-width:158px;box-shadow:var(--sh-md);}
+
 /* selos */
 .selo{display:inline-block;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;margin-left:4px;vertical-align:middle;}
 .selo-reinc{background:var(--red-lt);color:var(--red-dk);border:1px solid rgba(226,92,77,.3);}
@@ -594,9 +633,11 @@ let COMP_ANO_A = null;          // ano referência
 let COMP_ANO_B = null;          // ano comparativo
 let COMP_POSICOES = new Set([1,2]); // posições ordinais selecionadas (1-indexed)
 let COMP_REGIONAL = '';         // filtro regional ('' = todos)
-let COMP_COORD = '';            // filtro coordenador ('' = todos)
+let COMP_AUDITOR = '';          // filtro auditor ('' = todos)
 let COMP_FILIAIS_SEL = new Set(); // filiais selecionadas (vazio = todas)
 let COMP_SORT = { col:'filial', dir:1 };
+let COMP_COLUNAS = new Set(['filial','regional','auditor','avgA','avgB','delta','pct']); // colunas visíveis
+let COMP_CARD_ABERTO = null;    // card de análise aberto ('melhorias'|'quedas'|'atencao'|'critico'|null)
 let _compCanvas = null;         // ref ao canvas principal para exportação
 let _compCanvasDelta = null;    // ref ao canvas do ranking de variação
 
@@ -2275,7 +2316,7 @@ function _compCalcDados() {
   filiais.forEach(sig => {
     const info = BASE_FILIAIS[sig] || {};
     if (COMP_REGIONAL && (info.regional||'').toLowerCase() !== COMP_REGIONAL.toLowerCase()) return;
-    if (COMP_COORD && (info.coordenador||'').toLowerCase() !== COMP_COORD.toLowerCase()) return;
+    if (COMP_AUDITOR && (info.auditor||'').toLowerCase() !== COMP_AUDITOR.toLowerCase()) return;
     if (COMP_FILIAIS_SEL.size && !COMP_FILIAIS_SEL.has(sig)) return;
     const avgA = _compOrdinalMedia(sig, anoA, posicoes);
     const avgB = _compOrdinalMedia(sig, anoB, posicoes);
@@ -2284,7 +2325,7 @@ function _compCalcDados() {
       filial: sig,
       nome: info.loja || sig,
       regional: info.regional || '—',
-      coord: info.coordenador || '—',
+      auditor: info.auditor || '—',
       avgA, avgB,
       delta: (avgA != null && avgB != null) ? Math.round((avgB - avgA)*10)/10 : null,
       pct:   (avgA != null && avgB != null && avgA !== 0) ? Math.round(((avgB-avgA)/avgA)*1000)/10 : null,
@@ -2582,10 +2623,10 @@ function _compExportarPNG() {
   ctx.fillText('Comparativo de Auditorias · AGROQUIMA', textX, 42);
   // Subtitle: filters
   const regLbl  = COMP_REGIONAL || 'Todas as Regionais';
-  const crdLbl  = COMP_COORD   || 'Todos os Coordenadores';
+  const audLbl  = COMP_AUDITOR  || 'Todos os Auditores';
   const filLbl  = COMP_FILIAIS_SEL.size ? [...COMP_FILIAIS_SEL].sort().join(', ') : `${n} filial(is)`;
   ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = `13px ${FONT}`;
-  ctx.fillText(`Posição: ${posLbl}  ·  Anos: ${anoA} vs ${anoB}  ·  Regional: ${regLbl}  ·  Coord.: ${crdLbl}  ·  Filiais: ${filLbl}`, textX, 70);
+  ctx.fillText(`Posição: ${posLbl}  ·  Anos: ${anoA} vs ${anoB}  ·  Regional: ${regLbl}  ·  Auditor: ${audLbl}  ·  Filiais: ${filLbl}`, textX, 70);
   ctx.font = `12px ${FONT}`; ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.fillText(`* Auditórias "Em andamento" excluídas  ·  Ordenação ordinal por Nº sequencial dentro de cada filial+ano`, textX, 92);
 
@@ -2766,7 +2807,7 @@ function _compImportarPlanilha(file) {
     COMP_DADOS = novos;
     COMP_ARQUIVO_INFO = { nome, total: novos.length, ignoradas, importadoEm: new Date().toLocaleString('pt-BR') };
     COMP_ANO_A = null; COMP_ANO_B = null;
-    COMP_REGIONAL = ''; COMP_COORD = '';
+    COMP_REGIONAL = ''; COMP_AUDITOR = '';
     COMP_FILIAIS_SEL = new Set();
     COMP_POSICOES = new Set([1, 2]);
     renderAbaComparativo();
@@ -2820,13 +2861,24 @@ function _compExportarTabela() {
   const { dados, anoA, anoB, posicoes } = _compCalcDados();
   if (!dados.length) { alert('Sem dados para exportar.'); return; }
   const posLbl = posicoes.map(p=>['','1ª','2ª','3ª','4ª','5ª','6ª'][p]||p+'ª').join('+');
-  const header = ['Filial','Nome','Regional','Coordenador',`Média ${anoA}`,`Média ${anoB}`,'Δ Pts','Δ %'];
-  const rows = dados.map(d => [
-    d.filial, d.nome, d.regional, d.coord,
-    d.avgA ?? '', d.avgB ?? '',
-    d.delta != null ? (d.delta >= 0 ? '+' : '') + d.delta : '',
-    d.pct != null ? (d.pct >= 0 ? '+' : '') + d.pct + '%' : '',
-  ]);
+  const COLS = [
+    { key:'filial',   label:'Sigla',         always:true },
+    { key:'nome',     label:'Nome',           always:true },
+    { key:'regional', label:'Regional',       always:false },
+    { key:'auditor',  label:'Auditor',        always:false },
+    { key:'avgA',     label:`Média ${anoA}`,  always:false },
+    { key:'avgB',     label:`Média ${anoB}`,  always:false },
+    { key:'delta',    label:'Δ Pts',          always:false },
+    { key:'pct',      label:'Δ %',            always:false },
+  ];
+  const exportCols = COLS.filter(c => c.always || COMP_COLUNAS.has(c.key));
+  const sg = v => v != null && v >= 0 ? '+' : '';
+  const header = exportCols.map(c => c.label);
+  const rows = dados.map(d => exportCols.map(c => {
+    if (c.key === 'delta') return d.delta != null ? sg(d.delta) + d.delta : '';
+    if (c.key === 'pct')   return d.pct   != null ? sg(d.pct)   + d.pct + '%' : '';
+    return d[c.key] ?? '';
+  }));
   const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
   const url = URL.createObjectURL(blob);
@@ -2871,14 +2923,14 @@ function renderAbaComparativo() {
   if (!COMP_ANO_B) COMP_ANO_B = anos[anos.length-1];
 
   const regionais = [...new Set(Object.values(BASE_FILIAIS).map(f=>f.regional).filter(Boolean))].sort();
-  const coords    = [...new Set(Object.values(BASE_FILIAIS).map(f=>f.coordenador).filter(Boolean))].sort();
+  const auditores = [...new Set(Object.values(BASE_FILIAIS).map(f=>f.auditor).filter(Boolean))].sort();
   const filiaisDisp = _compFiliaisDisponiveis();
 
   const posLabel = p => ['','1ª','2ª','3ª','4ª','5ª','6ª'][p]||p+'ª';
   const posChecks = [1,2,3,4,5,6].map(p => {
     const on = COMP_POSICOES.has(p);
-    return `<label style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;
-      padding:5px 11px;border-radius:5px;user-select:none;
+    return `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;
+      padding:4px 10px;border-radius:5px;user-select:none;
       background:${on?'var(--brand-lt)':'var(--bg3)'};
       border:1px solid ${on?'var(--brand)':'var(--border)'};
       color:${on?'var(--brand-dk)':'var(--text2)'};">
@@ -2887,58 +2939,76 @@ function renderAbaComparativo() {
     </label>`;
   }).join('');
 
+  const filSel = COMP_FILIAIS_SEL.size;
+  const lbl10 = t => `<label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">${t}</label>`;
+
   c.innerHTML = `
 <div class="secao">
-  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
-    padding:14px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Ano A (Base)</label>
-      <select class="sel-sm" onchange="_compSetAno('a',this.value)">
-        ${anos.map(a=>`<option value="${a}" ${COMP_ANO_A===a?'selected':''}>${a}</option>`).join('')}
-      </select>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:13px 16px 12px;">
+    <!-- Row 1: main filters -->
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        ${lbl10('Ano A — Base')}
+        <select class="sel-sm" onchange="_compSetAno('a',this.value)">
+          ${anos.map(a=>`<option value="${a}" ${COMP_ANO_A===a?'selected':''}>${a}</option>`).join('')}
+        </select>
+      </div>
+      <div style="color:var(--text3);font-size:13px;align-self:flex-end;padding-bottom:7px;">vs</div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        ${lbl10('Ano B — Comparativo')}
+        <select class="sel-sm" onchange="_compSetAno('b',this.value)">
+          ${anos.map(a=>`<option value="${a}" ${COMP_ANO_B===a?'selected':''}>${a}</option>`).join('')}
+        </select>
+      </div>
+      <div style="width:1px;height:32px;background:var(--border);align-self:flex-end;margin:0 2px;"></div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        ${lbl10('Posição ordinal')}
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">${posChecks}</div>
+      </div>
+      <div style="width:1px;height:32px;background:var(--border);align-self:flex-end;margin:0 2px;"></div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        ${lbl10('Regional')}
+        <select class="sel-sm" onchange="_compSetFiltro('regional',this.value)">
+          <option value="">Todas</option>
+          ${regionais.map(r=>`<option value="${r}" ${COMP_REGIONAL===r?'selected':''}>${r}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        ${lbl10('Auditor')}
+        <select class="sel-sm" onchange="_compSetFiltro('auditor',this.value)">
+          <option value="">Todos</option>
+          ${auditores.map(a=>`<option value="${a}" ${COMP_AUDITOR===a?'selected':''}>${a}</option>`).join('')}
+        </select>
+      </div>
+      <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
+        ${COMP_ARQUIVO_INFO ? `<div style="font-size:10px;color:var(--text3);text-align:right;line-height:1.4;max-width:200px;">
+          <span style="font-weight:600;color:var(--text2);">${COMP_ARQUIVO_INFO.nome.length>30?COMP_ARQUIVO_INFO.nome.slice(0,28)+'…':COMP_ARQUIVO_INFO.nome}</span>
+          <span style="display:block;">${COMP_ARQUIVO_INFO.total} reg. · ${COMP_ARQUIVO_INFO.importadoEm}</span>
+        </div>` : ''}
+        <div style="display:flex;gap:4px;">
+          <button class="btn-topo" onclick="_compLimparFiltros()" title="Resetar todos os filtros">↺ Limpar</button>
+          <label class="btn-topo primary" title="Reimportar planilha" style="cursor:pointer;">
+            📂 <input type="file" accept=".xlsx,.xls,.ods,.csv,.json" style="display:none" onchange="_compImportarPlanilha(this.files[0]);this.value=''">
+          </label>
+          <button class="btn-topo danger" onclick="_compLimparDados()" title="Remover dados e reimportar" style="padding:6px 9px;">🗑</button>
+        </div>
+      </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Ano B (Comparativo)</label>
-      <select class="sel-sm" onchange="_compSetAno('b',this.value)">
-        ${anos.map(a=>`<option value="${a}" ${COMP_ANO_B===a?'selected':''}>${a}</option>`).join('')}
-      </select>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Posição ordinal</label>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;">${posChecks}</div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Regional</label>
-      <select class="sel-sm" onchange="_compSetFiltro('regional',this.value)">
-        <option value="">Todas</option>
-        ${regionais.map(r=>`<option value="${r}" ${COMP_REGIONAL===r?'selected':''}>${r}</option>`).join('')}
-      </select>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Coordenador</label>
-      <select class="sel-sm" onchange="_compSetFiltro('coord',this.value)">
-        <option value="">Todos</option>
-        ${coords.map(r=>`<option value="${r}" ${COMP_COORD===r?'selected':''}>${r}</option>`).join('')}
-      </select>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Filiais <span style="font-weight:400;font-size:10px;">(ctrl+clique)</span></label>
-      <select class="sel-sm" multiple size="3" id="comp-fil-sel"
-        onchange="_compSetFiliais(this)" style="min-width:150px;max-height:76px;">
-        ${filiaisDisp.map(s=>{const info=BASE_FILIAIS[s]||{};return`<option value="${s}" ${COMP_FILIAIS_SEL.has(s)?'selected':''}>${s} — ${info.loja||s}</option>`;}).join('')}
-      </select>
-    </div>
-    <div style="margin-left:auto;align-self:flex-end;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-      ${COMP_ARQUIVO_INFO ? `<div style="font-size:10px;color:var(--text3);text-align:right;line-height:1.4;">
-        <span style="font-weight:600;color:var(--text2);">${COMP_ARQUIVO_INFO.nome.length>28?COMP_ARQUIVO_INFO.nome.slice(0,26)+'…':COMP_ARQUIVO_INFO.nome}</span><br>
-        ${COMP_ARQUIVO_INFO.total} reg. · ${COMP_ARQUIVO_INFO.importadoEm}
-      </div>` : ''}
-      <div style="display:flex;gap:4px;">
-        <button class="btn-topo" onclick="_compLimparFiltros()" title="Resetar filtros">↺ Limpar</button>
-        <label class="btn-topo primary" title="Reimportar planilha" style="cursor:pointer;">
-          📂 <input type="file" accept=".xlsx,.xls,.ods,.csv,.json" style="display:none" onchange="_compImportarPlanilha(this.files[0]);this.value=''">
-        </label>
-        <button class="btn-topo danger" onclick="_compLimparDados()" title="Remover planilha importada" style="font-size:13px;padding:6px 9px;">🗑</button>
+    <!-- Row 2: filial chips -->
+    <div style="margin-top:11px;border-top:1px solid var(--border);padding-top:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">
+          Filiais
+          ${filSel ? `<span style="font-weight:500;color:var(--brand-dk);margin-left:4px;">${filSel} de ${filiaisDisp.length} selecionada(s)</span>` : `<span style="font-weight:400;color:var(--text3);margin-left:4px;">(todas)</span>`}
+        </span>
+        ${filSel ? `<button class="btn-topo" onclick="_compSelecionarTodasFiliais()" style="padding:2px 8px;font-size:10.5px;">✕ Limpar seleção</button>` : ''}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;">
+        ${filiaisDisp.map(s=>{
+          const ativo = !COMP_FILIAIS_SEL.size || COMP_FILIAIS_SEL.has(s);
+          const info = BASE_FILIAIS[s]||{};
+          return `<button class="comp-chip${ativo?' ativo':''}" onclick="_compToggleFilial('${s}')" title="${info.loja||s}">${s}</button>`;
+        }).join('')}
       </div>
     </div>
   </div>
@@ -2961,17 +3031,44 @@ function _compTogglePos(p) {
 }
 
 function _compSetFiltro(key, val) {
-  if (key==='regional') COMP_REGIONAL=val; else if (key==='coord') COMP_COORD=val;
+  if (key==='regional') COMP_REGIONAL=val; else if (key==='auditor') COMP_AUDITOR=val;
   _compRenderCorpo();
 }
 
-function _compSetFiliais(sel) {
-  COMP_FILIAIS_SEL = new Set([...sel.options].filter(o=>o.selected).map(o=>o.value));
+function _compToggleFilial(sig) {
+  if (COMP_FILIAIS_SEL.size === 0) {
+    // all selected → deselect one
+    const all = _compFiliaisDisponiveis();
+    COMP_FILIAIS_SEL = new Set(all.filter(s => s !== sig));
+  } else if (COMP_FILIAIS_SEL.has(sig)) {
+    COMP_FILIAIS_SEL.delete(sig);
+    if (COMP_FILIAIS_SEL.size === 0) COMP_FILIAIS_SEL = new Set(); // keep empty = all
+  } else {
+    COMP_FILIAIS_SEL.add(sig);
+    if (COMP_FILIAIS_SEL.size === _compFiliaisDisponiveis().length) COMP_FILIAIS_SEL = new Set();
+  }
+  renderAbaComparativo();
+}
+
+function _compSelecionarTodasFiliais() {
+  COMP_FILIAIS_SEL = new Set();
+  renderAbaComparativo();
+}
+
+function _compToggleColuna(key) {
+  if (COMP_COLUNAS.has(key) && COMP_COLUNAS.size > 2) COMP_COLUNAS.delete(key);
+  else COMP_COLUNAS.add(key);
+  _compRenderCorpo();
+}
+
+function _compAbrirCard(tipo) {
+  COMP_CARD_ABERTO = COMP_CARD_ABERTO === tipo ? null : tipo;
   _compRenderCorpo();
 }
 
 function _compLimparFiltros() {
-  COMP_REGIONAL=''; COMP_COORD=''; COMP_FILIAIS_SEL=new Set(); COMP_POSICOES=new Set([1,2]);
+  COMP_REGIONAL=''; COMP_AUDITOR=''; COMP_FILIAIS_SEL=new Set(); COMP_POSICOES=new Set([1,2]);
+  COMP_CARD_ABERTO=null;
   const a=_compAnosDisponiveis();
   COMP_ANO_A = a.length>=2 ? a[a.length-2] : a[0];
   COMP_ANO_B = a[a.length-1];
@@ -3000,19 +3097,91 @@ function _compRenderCorpo() {
   const melhor = comAmbos.length ? comAmbos.reduce((a,b)=>(b.pct||0)>(a.pct||0)?b:a,comAmbos[0]) : null;
   const pior   = comAmbos.length ? comAmbos.reduce((a,b)=>(b.pct||0)<(a.pct||0)?b:a,comAmbos[0]) : null;
   const sinal = v => v>=0?'+':'';
+  const sg = v => v!=null&&v>=0?'+':'';
   const kpiVC = varGeral===null?'b':varGeral>=0?'g':'r';
   const posLbl = posicoes.map(p=>['','1ª','2ª','3ª','4ª','5ª','6ª'][p]||p+'ª').join(' + ');
 
-  // Sort for table
+  // ── Analysis cards ─────────────────────────────────────────
+  const cats = [
+    {
+      id:'melhorias', cls:'cg', icon:'↑', label:'Melhoraram',
+      items: comAmbos.filter(d=>d.pct!=null&&d.pct>0).sort((a,b)=>b.pct-a.pct),
+      resumo: its => its.length ? `Média ${sg(1)}${(its.reduce((s,d)=>s+d.pct,0)/its.length).toFixed(1)}%` : '',
+    },
+    {
+      id:'quedas', cls:'cr', icon:'↓', label:'Caíram',
+      items: comAmbos.filter(d=>d.pct!=null&&d.pct<0).sort((a,b)=>a.pct-b.pct),
+      resumo: its => its.length ? `Média ${(its.reduce((s,d)=>s+d.pct,0)/its.length).toFixed(1)}%` : '',
+    },
+    {
+      id:'atencao', cls:'ca', icon:'⚠', label:'Atenção (nota B < 70)',
+      items: dados.filter(d=>d.avgB!=null&&d.avgB<70).sort((a,b)=>a.avgB-b.avgB),
+      resumo: its => its.length ? `Menor: ${its[0].avgB} pts — ${its[0].filial}` : '',
+    },
+    {
+      id:'critico', cls:'cr', icon:'🔴', label:'Crítico (nota B < 60)',
+      items: dados.filter(d=>d.avgB!=null&&d.avgB<60).sort((a,b)=>a.avgB-b.avgB),
+      resumo: its => its.length ? `Menor: ${its[0].avgB} pts — ${its[0].filial}` : '',
+    },
+  ];
+
+  // ── Card detail section ────────────────────────────────────
+  const catAberta = cats.find(c=>c.id===COMP_CARD_ABERTO);
+  const detalheHTML = catAberta ? (catAberta.items.length ? `
+<div class="comp-detalhe-bloco secao" style="margin-top:-4px;margin-bottom:18px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <div style="font-size:13px;font-weight:700;color:var(--text);">${catAberta.icon} ${catAberta.label}
+      <span style="font-size:11.5px;font-weight:400;color:var(--text3);margin-left:6px;">${catAberta.items.length} filial(is)</span>
+    </div>
+    <button class="btn-topo" onclick="_compAbrirCard('${catAberta.id}')" style="padding:3px 9px;font-size:11px;">✕ Fechar</button>
+  </div>
+  <div class="rank-wrap">
+    <table class="rank-table" style="font-size:12px;">
+      <thead><tr>
+        <th>Filial</th><th>Regional</th><th>Auditor</th>
+        <th style="text-align:center;">Média ${anoA}</th>
+        <th style="text-align:center;">Média ${anoB}</th>
+        <th style="text-align:center;">Δ %</th>
+      </tr></thead>
+      <tbody>${catAberta.items.map(d=>{
+        const pc=d.pct==null?'':d.pct>0?'comp-ok':d.pct<0?'comp-bad':'';
+        return `<tr>
+          <td><b>${d.filial}</b> <span style="font-size:11px;color:var(--text3);">${d.nome}</span></td>
+          <td style="font-size:12px;">${d.regional}</td>
+          <td style="font-size:12px;">${d.auditor}</td>
+          <td style="text-align:center;font-weight:700;">${d.avgA??'—'}</td>
+          <td style="text-align:center;font-weight:700;">${d.avgB??'—'}</td>
+          <td style="text-align:center;" class="${pc}">${d.pct!=null?sg(d.pct)+d.pct+'%':'—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  </div>
+</div>` : `<div class="comp-detalhe-bloco secao" style="margin-top:-4px;margin-bottom:18px;">
+  <div style="color:var(--text2);font-size:13px;padding:4px 0;">Nenhuma filial nesta categoria com os filtros atuais.</div>
+  <button class="btn-topo" onclick="_compAbrirCard('${catAberta.id}')" style="padding:3px 9px;font-size:11px;margin-top:8px;">✕ Fechar</button>
+</div>`) : '';
+
+  // ── Column definitions ─────────────────────────────────────
+  const COLS = [
+    { key:'filial',  label:'Filial',        align:'left',   always:true  },
+    { key:'regional',label:'Regional',      align:'left',   always:false },
+    { key:'auditor', label:'Auditor',       align:'left',   always:false },
+    { key:'avgA',    label:`Média ${anoA}`, align:'center', always:false },
+    { key:'avgB',    label:`Média ${anoB}`, align:'center', always:false },
+    { key:'delta',   label:'Δ Pts',         align:'center', always:false },
+    { key:'pct',     label:'Δ %',           align:'center', always:false },
+  ];
+  const visCols = COLS.filter(c=>c.always||COMP_COLUNAS.has(c.key));
+
+  // Sort table
   const tableSorted = [...dados].sort((a,b)=>{
     const col=COMP_SORT.col, va=a[col]??'', vb=b[col]??'';
     return (typeof va==='number'&&typeof vb==='number' ? (va-vb) : String(va).localeCompare(String(vb))) * COMP_SORT.dir;
   });
-
   const si = col => COMP_SORT.col===col ? (COMP_SORT.dir===1?'↑':'↓') : '';
 
   corpo.innerHTML = `
-<div class="kpi-grid secao" style="margin-bottom:18px;">
+<div class="kpi-grid secao" style="margin-bottom:16px;">
   <div class="kpi b"><div class="kl">Média ${anoA}</div><div class="kv">${mediaA??'—'}</div><div class="ks">${posLbl} · ${comAmbos.length} filial(is)</div></div>
   <div class="kpi b"><div class="kl">Média ${anoB}</div><div class="kv">${mediaB??'—'}</div><div class="ks">${posLbl} · ${comAmbos.length} filial(is)</div></div>
   <div class="kpi ${kpiVC}"><div class="kl">Variação Geral</div><div class="kv">${varGeral!==null?sinal(varGeral)+varGeral+'%':'—'}</div><div class="ks">${varGeral!==null?sinal(mediaB-mediaA)+(mediaB-mediaA).toFixed(1)+' pts médio':''}</div></div>
@@ -3020,8 +3189,22 @@ function _compRenderCorpo() {
   ${pior&&pior.pct!=null&&pior.pct<0?`<div class="kpi r"><div class="kl">Maior Queda</div><div class="kv">${pior.pct}%</div><div class="ks">${pior.filial} · ${pior.delta} pts</div></div>`:''}
 </div>
 
-<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-bottom:20px;">
+<div class="comp-analise-grid secao" style="margin-bottom:${COMP_CARD_ABERTO?'4':'18'}px;">
+  ${cats.map(cat=>{
+    const ativa = COMP_CARD_ABERTO===cat.id;
+    const r = cat.resumo(cat.items);
+    return `<div class="comp-analise-card ${cat.cls}${ativa?' ativa':''}" onclick="_compAbrirCard('${cat.id}')">
+      <div class="kl">${cat.icon} ${cat.label}</div>
+      <div class="comp-analise-num">${cat.items.length}</div>
+      ${r?`<div class="ks" style="margin-top:2px;">${r}</div>`:'<div class="ks" style="margin-top:2px;">—</div>'}
+      <div style="font-size:10px;color:var(--text3);margin-top:6px;">${ativa?'▲ ocultar':'▼ ver filiais'}</div>
+    </div>`;
+  }).join('')}
+</div>
 
+${detalheHTML}
+
+<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-bottom:20px;">
   <div class="chart-card" style="flex:1;min-width:320px;padding:14px 16px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <div class="chart-title" style="margin:0;">Comparativo de Pontuação — ${posLbl} · ${anoA} vs ${anoB}</div>
@@ -3031,7 +3214,6 @@ function _compRenderCorpo() {
       <canvas id="comp-chart-h" style="display:block;"></canvas>
     </div>
   </div>
-
   <div class="chart-card" style="width:min(260px,100%);flex-shrink:0;padding:14px 12px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;">Ranking de Variação</div>
@@ -3041,39 +3223,46 @@ function _compRenderCorpo() {
       <canvas id="comp-chart-delta" style="display:block;"></canvas>
     </div>
   </div>
-
 </div>
 
 <div class="secao">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-    <div class="secao-titulo" style="margin:0;">Tabela de Resultados <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;">— clique no cabeçalho para ordenar</span></div>
-    <button class="btn-topo primary" onclick="_compExportarTabela()" title="Exportar tabela como CSV" style="padding:5px 10px;font-size:11px;">⬇ CSV</button>
+    <div class="secao-titulo" style="margin:0;">Tabela de Resultados
+      <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;">— clique no cabeçalho para ordenar</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <details class="comp-col-picker" onclick="event.stopPropagation()">
+        <summary title="Selecionar colunas visíveis">⊞ Colunas</summary>
+        <div class="comp-col-panel">
+          ${COLS.filter(c=>!c.always).map(c=>`
+            <label style="display:flex;align-items:center;gap:7px;padding:3px 0;cursor:pointer;font-size:12.5px;color:var(--text);">
+              <input type="checkbox" ${COMP_COLUNAS.has(c.key)?'checked':''} onchange="_compToggleColuna('${c.key}')" style="accent-color:var(--brand);">
+              ${c.label}
+            </label>`).join('')}
+        </div>
+      </details>
+      <button class="btn-topo primary" onclick="_compExportarTabela()" title="Exportar colunas visíveis como CSV" style="padding:5px 10px;font-size:11px;">⬇ CSV</button>
+    </div>
   </div>
   <div class="rank-wrap">
     <table class="rank-table">
       <thead><tr>
-        <th onclick="_compSortTabela('filial')" class="sortavel">Filial ${si('filial')}</th>
-        <th onclick="_compSortTabela('regional')" class="sortavel">Regional ${si('regional')}</th>
-        <th onclick="_compSortTabela('coord')" class="sortavel">Coordenador ${si('coord')}</th>
-        <th onclick="_compSortTabela('avgA')" class="sortavel" style="text-align:center;">Média ${anoA} ${si('avgA')}</th>
-        <th onclick="_compSortTabela('avgB')" class="sortavel" style="text-align:center;">Média ${anoB} ${si('avgB')}</th>
-        <th onclick="_compSortTabela('delta')" class="sortavel" style="text-align:center;">Δ Pts ${si('delta')}</th>
-        <th onclick="_compSortTabela('pct')" class="sortavel" style="text-align:center;">Δ % ${si('pct')}</th>
+        ${visCols.map(c=>`<th onclick="_compSortTabela('${c.key}')" class="sortavel"${c.align==='center'?' style="text-align:center;"':''}>${c.label} ${si(c.key)}</th>`).join('')}
       </tr></thead>
       <tbody>
         ${tableSorted.map(d=>{
           const dc=d.delta==null?'':d.delta>0?'comp-ok':d.delta<0?'comp-bad':'';
           const pc=d.pct==null?'':d.pct>0?'comp-ok':d.pct<0?'comp-bad':'';
-          const sg=v=>v!=null&&v>=0?'+':'';
-          return `<tr>
-            <td><b>${d.filial}</b><br><span style="font-size:11px;color:var(--text3)">${d.nome}</span></td>
-            <td style="font-size:12px;">${d.regional}</td>
-            <td style="font-size:12px;">${d.coord}</td>
-            <td style="text-align:center;font-weight:700;">${d.avgA??'—'}</td>
-            <td style="text-align:center;font-weight:700;">${d.avgB??'—'}</td>
-            <td style="text-align:center;" class="${dc}">${d.delta!=null?sg(d.delta)+d.delta:'—'}</td>
-            <td style="text-align:center;" class="${pc}">${d.pct!=null?sg(d.pct)+d.pct+'%':'—'}</td>
-          </tr>`;
+          const cells={
+            filial:`<td><b>${d.filial}</b><br><span style="font-size:11px;color:var(--text3)">${d.nome}</span></td>`,
+            regional:`<td style="font-size:12px;">${d.regional}</td>`,
+            auditor:`<td style="font-size:12px;">${d.auditor}</td>`,
+            avgA:`<td style="text-align:center;font-weight:700;">${d.avgA??'—'}</td>`,
+            avgB:`<td style="text-align:center;font-weight:700;">${d.avgB??'—'}</td>`,
+            delta:`<td style="text-align:center;" class="${dc}">${d.delta!=null?sg(d.delta)+d.delta:'—'}</td>`,
+            pct:`<td style="text-align:center;" class="${pc}">${d.pct!=null?sg(d.pct)+d.pct+'%':'—'}</td>`,
+          };
+          return `<tr>${visCols.map(c=>cells[c.key]).join('')}</tr>`;
         }).join('')}
       </tbody>
     </table>
