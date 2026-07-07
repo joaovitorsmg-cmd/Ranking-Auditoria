@@ -603,7 +603,6 @@ let REGISTROS = [];       // todos os registros período a período (mesclados)
 let CONFIG = { dataPremio:'', ano: new Date().getFullYear(), tetoBonus: 5, totalRodadas: 4, rodadasConfianca: 2 };
 function _rodadasFilial(sigla) { return _ehFilialConfianca(sigla) ? (CONFIG.rodadasConfianca||2) : (CONFIG.totalRodadas||4); }
 let ABA_ATUAL = 'anual';
-let SORT_STATE = { col:'scoreFinal', asc:false };
 let chartEvol = null;
 
 // ============================================================
@@ -2132,7 +2131,8 @@ function gerarAgendaSemana() {
   const segunda=_cronoProximaSegunda(hoje);
   const sabado=new Date(segunda); sabado.setDate(segunda.getDate()+5);
   const fmt=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
-  const dados=consolidarCronograma(hoje.getFullYear());
+  const anoAgenda = CRONO_ANO_SEL || hoje.getFullYear();
+  const dados=consolidarCronograma(anoAgenda);
 
   const itens=[], semPendencia=[];
   dados.auditores.forEach(a=>{
@@ -2178,10 +2178,11 @@ function gerarAgendaSemana() {
 function exportarAgendaPNG() {
   const el=document.getElementById('agenda-render');
   if (!el) return;
+  const ano = CRONO_ANO_SEL || new Date().getFullYear();
   html2canvas(el, {scale:2, backgroundColor:'#ffffff'}).then(canvas=>{
     const a=document.createElement('a');
     a.href=canvas.toDataURL('image/png');
-    a.download=`Agenda_Auditorias_${new Date().toLocaleDateString('pt-BR').split('/').join('-')}.png`;
+    a.download=`Agenda_Auditorias_${ano}_${new Date().toLocaleDateString('pt-BR').split('/').join('-')}.png`;
     a.click();
   });
 }
@@ -4580,7 +4581,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
   function exportarFatHistoricoXLS() {
     const periodos = _fatViewPeriodosOrdenados();
     if (!periodos.length) { alert('Sem dados de faturamento para exportar.'); return; }
-    const filiais = Object.keys(FAT_HISTORICO).sort();
+    const filtro = (document.getElementById('fat-view-filtro')?.value||'').trim().toUpperCase();
+    const filiais = Object.keys(FAT_HISTORICO).filter(function(s) { return !filtro || s.indexOf(filtro)>-1; }).sort();
     const aoa = [['Filial'].concat(periodos)];
     filiais.forEach(function(sigla) {
       aoa.push([sigla].concat(periodos.map(function(p) { return (FAT_HISTORICO[sigla]||{})[p] || 0; })));
