@@ -588,6 +588,8 @@ let _cronoEmAndSort = { col:'dias', dir:-1 }; // estado de ordenação do card "
 let _cronoDetSort = { col:'qtd', dir:1 };      // estado de ordenação da tabela "Detalhe por Filial"
 
 // ── COMPARATIVO ──────────────────────────────────────────────
+let COMP_DADOS = [];            // data store próprio do Comparativo (independente de CRONO_AUDITORIAS)
+let COMP_ARQUIVO_INFO = null;   // metadados do arquivo importado
 let COMP_ANO_A = null;          // ano referência
 let COMP_ANO_B = null;          // ano comparativo
 let COMP_POSICOES = new Set([1,2]); // posições ordinais selecionadas (1-indexed)
@@ -595,7 +597,8 @@ let COMP_REGIONAL = '';         // filtro regional ('' = todos)
 let COMP_COORD = '';            // filtro coordenador ('' = todos)
 let COMP_FILIAIS_SEL = new Set(); // filiais selecionadas (vazio = todas)
 let COMP_SORT = { col:'filial', dir:1 };
-let _compCanvas = null;         // ref ao canvas para exportação
+let _compCanvas = null;         // ref ao canvas principal para exportação
+let _compCanvasDelta = null;    // ref ao canvas do ranking de variação
 
 // ============================================================
 // ENRIQUECER COM BASE DE FILIAIS
@@ -2234,12 +2237,12 @@ function renderTabelaCronograma() {
 // ABA COMPARATIVO
 // ============================================================
 function _compAnosDisponiveis() {
-  const s = new Set(CRONO_AUDITORIAS.map(r => r.ano));
+  const s = new Set(COMP_DADOS.map(r => r.ano).filter(Boolean));
   return [...s].sort((a,b) => a-b);
 }
 
 function _compFiliaisDisponiveis() {
-  const fil = new Set(CRONO_AUDITORIAS.map(r => r.filial));
+  const fil = new Set(COMP_DADOS.map(r => r.filial));
   return [...fil].filter(s => !CRONO_FILIAIS_IGNORADAS.includes(s)).sort();
 }
 
@@ -2249,7 +2252,7 @@ function _compNumSort(a, b) {
 }
 
 function _compOrdinalMedia(filial, ano, posicoes) {
-  const regs = CRONO_AUDITORIAS
+  const regs = COMP_DADOS
     .filter(r => r.filial === filial && r.ano === ano && _cronoEhFinalizada(r) && r.nota != null)
     .sort((a,b) => _compNumSort(a.numero, b.numero));
   const notas = [];
@@ -2418,6 +2421,7 @@ function _compDesenharComparativo(dados, anoA, anoB) {
 function _compDesenharRanking(dados) {
   const canvas = document.getElementById('comp-chart-delta');
   if (!canvas) return;
+  _compCanvasDelta = canvas;
   const sorted = [...dados].filter(d=>d.pct!=null).sort((a,b)=>b.pct-a.pct);
   if (!sorted.length) { canvas.style.display='none'; return; }
   canvas.style.display='block';
@@ -2727,17 +2731,141 @@ function _compExportarPNG() {
   link.click();
 }
 
+/* ── Import / clear functions ─────────────────────────────── */
+function _compImportarPlanilha(file) {
+  if (!file) return;
+  const nome = file.name;
+  const aplicar = function(matrix) {
+    if (!matrix || !matrix.length) { alert('Planilha vazia ou inválida.'); return; }
+    const idxFilial  = _colIdx(matrix[0], 'filial', 'loja', 'unidade');
+    const idxData    = _colIdx(matrix[0], 'dt inicio', 'dt início', 'dt. inicio', 'dtinicio', 'data');
+    const idxNota    = _colIdx(matrix[0], 'pont', 'nota', 'score');
+    const idxStatus  = _colIdx(matrix[0], 'status');
+    const idxNumero  = _colIdx(matrix[0], 'nº auditoria', 'n° auditoria', 'numero', 'número', 'auditoria');
+    if (idxFilial < 0 || idxData < 0) {
+      alert('Estrutura não reconhecida. Esperado: Filial, Dt Inicio, Pontos, Status, Nº Auditoria.'); return;
+    }
+    const novos = []; let ignoradas = 0;
+    for (let i = 1; i < matrix.length; i++) {
+      const row = matrix[i]; if (!row || !row[idxFilial]) continue;
+      const sigla = _cronoResolveFilial(row[idxFilial]);
+      const dt = _cronoParseData(row[idxData]);
+      if (!sigla || !dt || isNaN(dt.getTime())) { ignoradas++; continue; }
+      const notaRaw = idxNota > -1 ? parseFloat(String(row[idxNota]).replace(',', '.')) : NaN;
+      const statusRaw = idxStatus > -1 ? String(row[idxStatus] || '').trim() : 'Finalizada';
+      novos.push({
+        filial: sigla,
+        data: dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0'),
+        ano: dt.getFullYear(),
+        nota: isNaN(notaRaw) ? null : Math.round(notaRaw * 10) / 10,
+        status: statusRaw || 'Finalizada',
+        numero: idxNumero > -1 ? String(row[idxNumero] || '').trim() : null,
+      });
+    }
+    if (!novos.length) { alert('Nenhuma linha válida encontrada. Verifique as colunas Filial e Dt Inicio.'); return; }
+    COMP_DADOS = novos;
+    COMP_ARQUIVO_INFO = { nome, total: novos.length, ignoradas, importadoEm: new Date().toLocaleString('pt-BR') };
+    COMP_ANO_A = null; COMP_ANO_B = null;
+    COMP_REGIONAL = ''; COMP_COORD = '';
+    COMP_FILIAIS_SEL = new Set();
+    COMP_POSICOES = new Set([1, 2]);
+    renderAbaComparativo();
+  };
+  const lower = nome.toLowerCase();
+  if (lower.endsWith('.json')) {
+    const r = new FileReader();
+    r.onload = e => {
+      try {
+        const j = JSON.parse(e.target.result);
+        const rows = Array.isArray(j) ? j : (j.dados || j.linhas || []);
+        const matrix = [['Filial','Dt Inicio','Pontos','Status','Nº Auditoria']].concat(
+          rows.map(x => [x.filial||x.Filial, x.data||x.Data, x.nota||x.Nota||x.pontos||x.Pontos, x.status||x.Status, x.numero||x.Numero])
+        );
+        aplicar(matrix);
+      } catch(err) { alert('JSON inválido: ' + err.message); }
+    };
+    r.readAsText(file);
+  } else {
+    const r = new FileReader();
+    r.onload = e => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:false});
+        const ws0 = wb.Sheets[wb.SheetNames[0]];
+        const matrix = XLSX.utils.sheet_to_json(ws0, {header:1, defval:'', raw:true});
+        aplicar(matrix);
+      } catch(err) { alert('Erro ao ler planilha: ' + err.message); }
+    };
+    r.readAsArrayBuffer(file);
+  }
+}
+
+function _compLimparDados() {
+  if (!confirm('Remover os dados do Comparativo? Você poderá importar uma nova planilha.')) return;
+  COMP_DADOS = []; COMP_ARQUIVO_INFO = null;
+  COMP_ANO_A = null; COMP_ANO_B = null;
+  renderAbaComparativo();
+}
+
+function _compExportarRanking() {
+  const canvas = document.getElementById('comp-chart-delta');
+  if (!canvas) { alert('Gráfico não disponível.'); return; }
+  const { anoA, anoB } = _compCalcDados();
+  const link = document.createElement('a');
+  link.download = `ranking-variacao-${anoA}-vs-${anoB}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function _compExportarTabela() {
+  const { dados, anoA, anoB, posicoes } = _compCalcDados();
+  if (!dados.length) { alert('Sem dados para exportar.'); return; }
+  const posLbl = posicoes.map(p=>['','1ª','2ª','3ª','4ª','5ª','6ª'][p]||p+'ª').join('+');
+  const header = ['Filial','Nome','Regional','Coordenador',`Média ${anoA}`,`Média ${anoB}`,'Δ Pts','Δ %'];
+  const rows = dados.map(d => [
+    d.filial, d.nome, d.regional, d.coord,
+    d.avgA ?? '', d.avgB ?? '',
+    d.delta != null ? (d.delta >= 0 ? '+' : '') + d.delta : '',
+    d.pct != null ? (d.pct >= 0 ? '+' : '') + d.pct + '%' : '',
+  ]);
+  const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = `comparativo-${anoA}-vs-${anoB}-${posLbl}.csv`;
+  link.href = url; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /* ── Main render ──────────────────────────────────────────── */
 function renderAbaComparativo() {
   const c = document.getElementById('conteudo-abas');
-  if (!CRONO_AUDITORIAS.length) {
-    c.innerHTML = `<div class="info-bar" style="max-width:640px;margin:32px auto;text-align:center;">
-      <div style="font-size:28px;margin-bottom:10px;">📊</div>
-      <strong>Nenhum dado de cronograma carregado</strong><br>
-      <span style="font-size:12px;">Acesse a aba <strong>🗓 Cronograma</strong> e importe a planilha de auditorias para habilitar o comparativo.</span>
-    </div>`;
+
+  // No data — show import screen
+  if (!COMP_DADOS.length) {
+    c.innerHTML = `
+<div style="max-width:520px;margin:52px auto;text-align:center;padding:0 20px;">
+  <div style="font-size:44px;margin-bottom:14px;">📊</div>
+  <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;">Comparativo de Auditorias</div>
+  <div style="font-size:13px;color:var(--text2);margin-bottom:28px;line-height:1.65;">
+    Importe a planilha de auditorias para visualizar o comparativo entre anos.<br>
+    <span style="font-size:11px;color:var(--text3);">Colunas esperadas: Filial · Nº Auditoria · Status · Dt Inicio · Pontos</span>
+  </div>
+  <label id="comp-drop-zone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:10px;padding:36px 24px;border:2px dashed var(--border2);border-radius:14px;cursor:pointer;
+    background:var(--bg2);transition:border-color .15s,background .15s;min-height:148px;"
+    ondragover="event.preventDefault();this.style.borderColor='var(--brand)';this.style.background='var(--brand-lt)'"
+    ondragleave="this.style.borderColor='';this.style.background=''"
+    ondrop="event.preventDefault();this.style.borderColor='';this.style.background='';_compImportarPlanilha(event.dataTransfer.files[0])">
+    <input type="file" accept=".xlsx,.xls,.ods,.csv,.json" style="display:none" onchange="_compImportarPlanilha(this.files[0]);this.value=''">
+    <div style="font-size:32px;pointer-events:none;">📂</div>
+    <div style="font-size:14px;font-weight:600;color:var(--text);pointer-events:none;">Soltar planilha aqui</div>
+    <div style="font-size:12px;color:var(--text3);pointer-events:none;">ou clique para selecionar o arquivo</div>
+    <div style="margin-top:2px;font-size:11px;color:var(--text3);pointer-events:none;">.xlsx · .xls · .ods · .csv · .json</div>
+  </label>
+</div>`;
     return;
   }
+
   const anos = _compAnosDisponiveis();
   if (!COMP_ANO_A) COMP_ANO_A = anos.length >= 2 ? anos[anos.length-2] : anos[0];
   if (!COMP_ANO_B) COMP_ANO_B = anos[anos.length-1];
@@ -2800,8 +2928,18 @@ function renderAbaComparativo() {
         ${filiaisDisp.map(s=>{const info=BASE_FILIAIS[s]||{};return`<option value="${s}" ${COMP_FILIAIS_SEL.has(s)?'selected':''}>${s} — ${info.loja||s}</option>`;}).join('')}
       </select>
     </div>
-    <div style="margin-left:auto;align-self:flex-end;">
-      <button class="btn-topo" onclick="_compLimparFiltros()" title="Resetar filtros">↺ Limpar</button>
+    <div style="margin-left:auto;align-self:flex-end;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+      ${COMP_ARQUIVO_INFO ? `<div style="font-size:10px;color:var(--text3);text-align:right;line-height:1.4;">
+        <span style="font-weight:600;color:var(--text2);">${COMP_ARQUIVO_INFO.nome.length>28?COMP_ARQUIVO_INFO.nome.slice(0,26)+'…':COMP_ARQUIVO_INFO.nome}</span><br>
+        ${COMP_ARQUIVO_INFO.total} reg. · ${COMP_ARQUIVO_INFO.importadoEm}
+      </div>` : ''}
+      <div style="display:flex;gap:4px;">
+        <button class="btn-topo" onclick="_compLimparFiltros()" title="Resetar filtros">↺ Limpar</button>
+        <label class="btn-topo primary" title="Reimportar planilha" style="cursor:pointer;">
+          📂 <input type="file" accept=".xlsx,.xls,.ods,.csv,.json" style="display:none" onchange="_compImportarPlanilha(this.files[0]);this.value=''">
+        </label>
+        <button class="btn-topo danger" onclick="_compLimparDados()" title="Remover planilha importada" style="font-size:13px;padding:6px 9px;">🗑</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2895,6 +3033,10 @@ function _compRenderCorpo() {
   </div>
 
   <div class="chart-card" style="width:min(260px,100%);flex-shrink:0;padding:14px 12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;">Ranking de Variação</div>
+      <button class="btn-topo primary" onclick="_compExportarRanking()" title="Exportar como PNG" style="padding:3px 8px;font-size:10px;flex-shrink:0;">⬇ PNG</button>
+    </div>
     <div style="overflow-y:auto;max-height:520px;overflow-x:hidden;">
       <canvas id="comp-chart-delta" style="display:block;"></canvas>
     </div>
@@ -2903,7 +3045,10 @@ function _compRenderCorpo() {
 </div>
 
 <div class="secao">
-  <div class="secao-titulo">Tabela de Resultados <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;">— clique no cabeçalho para ordenar</span></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <div class="secao-titulo" style="margin:0;">Tabela de Resultados <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;">— clique no cabeçalho para ordenar</span></div>
+    <button class="btn-topo primary" onclick="_compExportarTabela()" title="Exportar tabela como CSV" style="padding:5px 10px;font-size:11px;">⬇ CSV</button>
+  </div>
   <div class="rank-wrap">
     <table class="rank-table">
       <thead><tr>
