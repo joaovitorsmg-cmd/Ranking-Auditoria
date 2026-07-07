@@ -300,6 +300,65 @@ body,#topo,.kpi,.chart-card,.rank-wrap,.modal-box,.arq-card,.drop-zone,.btn-topo
 .crono-row-click{cursor:pointer;}
 .crono-row-click:hover{background:rgba(43,127,212,.08);}
 [data-theme="light"] .crono-row-click:hover{background:rgba(21,101,192,.07);}
+
+/* ─── BOTÃO QUALIDADE DISCRETA ────────────────────────────────── */
+#btn-qualidade{
+  position:fixed;bottom:18px;right:18px;z-index:800;
+  width:32px;height:32px;border-radius:50%;
+  background:transparent;border:1px solid transparent;
+  color:var(--text3);font-size:14px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .25s,background .2s,border-color .2s,color .2s;
+  line-height:1;
+}
+#btn-qualidade:hover,body:hover #btn-qualidade{opacity:.55;}
+#btn-qualidade:hover{opacity:1!important;background:var(--bg2);border-color:var(--border2);color:var(--text2);}
+#btn-qualidade.tem-erros{opacity:.7;color:var(--amber-dk);}
+#btn-qualidade.tem-erros:hover{opacity:1;background:var(--amber-lt);border-color:var(--amber);}
+
+/* ─── PAINEL QUALIDADE ─────────────────────────────────────────── */
+#painel-qualidade{
+  position:fixed;bottom:58px;right:18px;z-index:900;
+  width:min(480px,calc(100vw - 32px));
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:12px;box-shadow:var(--sh-md);
+  display:none;flex-direction:column;max-height:min(520px,80vh);
+  overflow:hidden;
+}
+#painel-qualidade.aberto{display:flex;}
+.pq-header{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 16px 12px;border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.pq-titulo{font-size:13px;font-weight:800;flex:1;}
+.pq-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;}
+.pq-badge.ok{background:var(--green-lt);color:var(--green-dk);}
+.pq-badge.warn{background:var(--amber-lt);color:var(--amber-dk);}
+.pq-badge.err{background:var(--red-lt);color:var(--red-dk);}
+.pq-fechar{background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;padding:2px;}
+.pq-fechar:hover{color:var(--text);}
+.pq-body{overflow-y:auto;padding:10px 14px 14px;flex:1;}
+.pq-secao{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--text3);margin:14px 0 8px;display:flex;align-items:center;gap:8px;}
+.pq-secao::after{content:'';flex:1;height:1px;background:var(--border);}
+.pq-secao:first-child{margin-top:4px;}
+.pq-item{display:flex;align-items:flex-start;gap:9px;padding:7px 10px;
+  border-radius:6px;margin-bottom:4px;font-size:12px;line-height:1.5;}
+.pq-item.err{background:var(--red-lt);border-left:3px solid var(--red);}
+.pq-item.warn{background:var(--amber-lt);border-left:3px solid var(--amber);}
+.pq-item.info{background:var(--brand-lt);border-left:3px solid var(--brand);}
+.pq-dot{flex-shrink:0;width:7px;height:7px;border-radius:50%;margin-top:5px;}
+.pq-dot.err{background:var(--red);}
+.pq-dot.warn{background:var(--amber);}
+.pq-dot.info{background:var(--brand);}
+.pq-msg{flex:1;}
+.pq-msg strong{color:var(--text);font-weight:700;}
+.pq-msg span{color:var(--text2);}
+.pq-vazio{text-align:center;padding:24px 16px;color:var(--text3);font-size:12.5px;}
+.pq-vazio strong{display:block;font-size:15px;margin-bottom:6px;color:var(--green-dk);}
+.pq-footer{padding:10px 14px;border-top:1px solid var(--border);font-size:11px;
+  color:var(--text3);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;}
 </style>
 </head>
 <body>
@@ -3212,6 +3271,193 @@ window.addEventListener('DOMContentLoaded', ()=>{
       </table>`;
     document.getElementById('modal-crono-filial').classList.remove('hidden');
   }
+
+  /* ─── QUALIDADE DE DADOS ──────────────────────────────────────── */
+  function _qualidadeRodar() {
+    const erros = [];
+    const avisos = [];
+    const infos = [];
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+
+    // ── CRONO_AUDITORIAS ──────────────────────────────────────────
+    if (CRONO_AUDITORIAS.length) {
+      // Índice de números para detectar duplicatas
+      const numerosVistos = {};
+      CRONO_AUDITORIAS.forEach((r, i) => {
+        const id = `${r.filial} · Nº ${r.numero||'?'} (${r.dataDisplay||r.data})`;
+
+        // 1. Nota nula em auditoria finalizada
+        if (_cronoEhFinalizada(r) && r.nota == null) {
+          erros.push({ tipo:'crono', msg: `<strong>${id}</strong> — <span>Auditoria finalizada sem nota registrada</span>` });
+        }
+
+        // 2. Nota fora do intervalo [0, 100]
+        if (r.nota != null && (r.nota < 0 || r.nota > 100)) {
+          erros.push({ tipo:'crono', msg: `<strong>${id}</strong> — <span>Nota fora do intervalo válido: ${r.nota}</span>` });
+        }
+
+        // 3. Nota zero em auditoria finalizada
+        if (_cronoEhFinalizada(r) && r.nota === 0) {
+          avisos.push({ tipo:'crono', msg: `<strong>${id}</strong> — <span>Nota zero em auditoria finalizada (possível lançamento incorreto)</span>` });
+        }
+
+        // 4. Data no futuro
+        if (r.data) {
+          const dt = new Date(r.data + 'T00:00:00');
+          if (!isNaN(dt) && dt > hoje) {
+            avisos.push({ tipo:'crono', msg: `<strong>${id}</strong> — <span>Data de início no futuro: ${r.dataDisplay}</span>` });
+          }
+        }
+
+        // 5. Em andamento há mais de 180 dias
+        if (!_cronoEhFinalizada(r) && r.data) {
+          const dt = new Date(r.data + 'T00:00:00');
+          const dias = Math.floor((hoje - dt) / 86400000);
+          if (!isNaN(dt) && dias > 180) {
+            avisos.push({ tipo:'crono', msg: `<strong>${id}</strong> — <span>Em andamento há ${dias} dias sem encerramento</span>` });
+          }
+        }
+
+        // 6. Nº Auditoria duplicado
+        if (r.numero) {
+          if (numerosVistos[r.numero] && numerosVistos[r.numero] !== r.filial) {
+            avisos.push({ tipo:'crono', msg: `<strong>Nº ${r.numero}</strong> — <span>Mesmo número de auditoria usado em ${numerosVistos[r.numero]} e ${r.filial}</span>` });
+          }
+          numerosVistos[r.numero] = r.filial;
+        }
+
+        // 7. Filial não está na base
+        if (!BASE_FILIAIS[r.filial]) {
+          erros.push({ tipo:'crono', msg: `<strong>${r.filial}</strong> — <span>Filial não encontrada na base de dados</span>` });
+        }
+      });
+
+      // 8. Filiais ativas sem nenhuma auditoria no ano corrente
+      const anoAtual = hoje.getFullYear();
+      const filiaisComAud = new Set(CRONO_AUDITORIAS.filter(r => r.ano === anoAtual).map(r => r.filial));
+      _cronoFiliaisValidas().forEach(s => {
+        if (!filiaisComAud.has(s)) {
+          infos.push({ tipo:'crono', msg: `<strong>${s} · ${(BASE_FILIAIS[s]||{}).loja||s}</strong> — <span>Sem auditoria registrada em ${anoAtual}</span>` });
+        }
+      });
+    }
+
+    // ── REGISTROS (ranking) ───────────────────────────────────────
+    if (REGISTROS.length) {
+      REGISTROS.forEach(r => {
+        const id = `<strong>${r.filial} · ${r.periodo||'?'}</strong>`;
+
+        // 9. Data de auditoria ausente
+        if (!r.dataAuditoria) {
+          infos.push({ tipo:'ranking', msg: `${id} — <span>Data de auditoria não informada</span>` });
+        }
+
+        // 10. Data de auditoria no futuro
+        if (r.dataAuditoria) {
+          const p = r.dataAuditoria.split('/');
+          if (p.length === 3) {
+            const dt = new Date(+p[2], +p[1]-1, +p[0]);
+            if (!isNaN(dt) && dt > hoje) {
+              avisos.push({ tipo:'ranking', msg: `${id} — <span>Data de auditoria no futuro: ${r.dataAuditoria}</span>` });
+            }
+          }
+        }
+
+        // 11. Score anormal
+        if (r.mediaScore != null) {
+          if (r.mediaScore === 0) {
+            avisos.push({ tipo:'ranking', msg: `${id} — <span>Score zero (possível dado incompleto)</span>` });
+          } else if (r.mediaScore === 100) {
+            infos.push({ tipo:'ranking', msg: `${id} — <span>Score perfeito 100 — verificar se os dados estão completos</span>` });
+          }
+        }
+
+        // 12. Vencidos sem faturamento
+        if (r.temVenc && (!r.faturamento || r.faturamento === 0)) {
+          avisos.push({ tipo:'ranking', msg: `${id} — <span>Possui vencidos mas faturamento = 0 (impacto no cálculo de score)</span>` });
+        }
+      });
+    }
+
+    // ── sem dados ─────────────────────────────────────────────────
+    if (!CRONO_AUDITORIAS.length && !REGISTROS.length) {
+      infos.push({ tipo:'geral', msg: '<strong>Nenhum dado carregado</strong> — <span>Importe a planilha de cronograma ou ranking para ativar as verificações</span>' });
+    }
+
+    return { erros, avisos, infos };
+  }
+
+  function _qualidadeAbrir() {
+    const painel = document.getElementById('painel-qualidade');
+    if (painel.classList.contains('aberto')) {
+      painel.classList.remove('aberto');
+      return;
+    }
+    const { erros, avisos, infos } = _qualidadeRodar();
+    const total = erros.length + avisos.length + infos.length;
+    const btn = document.getElementById('btn-qualidade');
+
+    // Atualiza classe do botão
+    btn.classList.remove('tem-erros');
+    if (erros.length || avisos.length) btn.classList.add('tem-erros');
+
+    // Badge do header
+    let badgeClass = 'ok', badgeLabel = 'Tudo certo';
+    if (erros.length) { badgeClass = 'err'; badgeLabel = erros.length + ' erro' + (erros.length>1?'s':''); }
+    else if (avisos.length) { badgeClass = 'warn'; badgeLabel = avisos.length + ' aviso' + (avisos.length>1?'s':''); }
+
+    let html = '';
+
+    if (!total) {
+      html = `<div class="pq-vazio"><strong>✓ Sem ocorrências</strong>Nenhum problema detectado nos dados carregados.</div>`;
+    } else {
+      if (erros.length) {
+        html += `<div class="pq-secao">Erros (${erros.length})</div>`;
+        html += erros.map(e => `<div class="pq-item err"><div class="pq-dot err"></div><div class="pq-msg">${e.msg}</div></div>`).join('');
+      }
+      if (avisos.length) {
+        html += `<div class="pq-secao">Avisos (${avisos.length})</div>`;
+        html += avisos.map(e => `<div class="pq-item warn"><div class="pq-dot warn"></div><div class="pq-msg">${e.msg}</div></div>`).join('');
+      }
+      if (infos.length) {
+        html += `<div class="pq-secao">Informações (${infos.length})</div>`;
+        html += infos.map(e => `<div class="pq-item info"><div class="pq-dot info"></div><div class="pq-msg">${e.msg}</div></div>`).join('');
+      }
+    }
+
+    document.getElementById('pq-badge').className = 'pq-badge ' + badgeClass;
+    document.getElementById('pq-badge').textContent = badgeLabel;
+    document.getElementById('pq-body-inner').innerHTML = html;
+    document.getElementById('pq-ts').textContent = 'Verificado em ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+    document.getElementById('pq-total').textContent = total + ' ocorrência' + (total!==1?'s':'');
+    painel.classList.add('aberto');
+  }
+
+  document.addEventListener('click', e => {
+    const painel = document.getElementById('painel-qualidade');
+    const btn = document.getElementById('btn-qualidade');
+    if (painel && painel.classList.contains('aberto') && !painel.contains(e.target) && e.target !== btn) {
+      painel.classList.remove('aberto');
+    }
+  });
 </script>
+
+<!-- Botão qualidade discreta -->
+<button id="btn-qualidade" onclick="event.stopPropagation();_qualidadeAbrir()" title="Verificação de qualidade dos dados">⚑</button>
+
+<!-- Painel qualidade -->
+<div id="painel-qualidade">
+  <div class="pq-header">
+    <span class="pq-titulo">Qualidade dos Dados</span>
+    <span id="pq-badge" class="pq-badge ok">Tudo certo</span>
+    <button class="pq-fechar" onclick="document.getElementById('painel-qualidade').classList.remove('aberto')" title="Fechar">×</button>
+  </div>
+  <div class="pq-body" id="pq-body-inner"></div>
+  <div class="pq-footer">
+    <span id="pq-ts"></span>
+    <span id="pq-total"></span>
+  </div>
+</div>
+
 </body>
 </html>
