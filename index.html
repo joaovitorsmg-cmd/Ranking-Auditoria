@@ -77,10 +77,6 @@ body{font-family:var(--fonte);background:var(--bg);color:var(--text);font-size:1
 .btn-topo{display:inline-flex;align-items:center;gap:5px;padding:7px 10px;border-radius:var(--r-sm);
   font-size:12.5px;font-weight:500;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--text2);transition:.15s;white-space:nowrap;}
 .btn-topo .btn-topo-txt{display:inline;}
-@media (max-width: 1280px) and (min-width: 769px){
-  .btn-topo .btn-topo-txt{display:none;}
-  .btn-topo{padding:7px 9px;}
-}
 .btn-topo:hover{background:var(--bg2);border-color:var(--border2);color:var(--text);}
 .btn-topo.primary{background:var(--bg2);border-color:var(--border2);color:var(--brand-dk);}
 .btn-topo.primary:hover{background:var(--brand-lt);border-color:var(--brand);color:var(--brand-dk);}
@@ -335,6 +331,19 @@ body,#topo,.kpi,.chart-card,.rank-wrap,.modal-box,.arq-card,.drop-zone,.btn-topo
 /* Botão de tema */
 .btn-tema{border:1px solid var(--border2)!important;}
 .btn-tema:hover{background:var(--bg3)!important;border-color:var(--brand)!important;}
+
+/* Tooltip customizado nos botões do cabeçalho */
+.btn-topo[title]{position:relative;}
+.btn-topo[title]:hover::after{
+  content:attr(title);
+  position:absolute;top:calc(100% + 8px);right:0;
+  background:var(--bg3);color:var(--text);border:1px solid var(--border2);
+  border-radius:6px;padding:6px 10px;font-size:11px;line-height:1.5;
+  white-space:pre-wrap;max-width:280px;z-index:9999;
+  box-shadow:var(--sh-md);pointer-events:none;
+  animation:fadeInTooltip .12s ease;
+}
+@keyframes fadeInTooltip{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 /* Linha da tabela do cronograma clicável */
 .crono-row-click{cursor:pointer;}
 .crono-row-click:hover{background:rgba(43,127,212,.08);}
@@ -413,12 +422,12 @@ body,#topo,.kpi,.chart-card,.rank-wrap,.modal-box,.arq-card,.drop-zone,.btn-topo
   <div id="sync-indicator" style="display:inline-flex;align-items:center;padding:5px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--border);margin-right:4px;" title="Status da sincronização com a nuvem">☁ <span style="font-size:11px;margin-left:4px;color:var(--text3);">Sem sync</span></div>
   <button id="btn-acoes-mobile" style="display:none;" onclick="toggleAcoesMobile()">&#9776; A&ccedil;&otilde;es</button>
   <div class="topo-btns" id="topo-btns-wrap">
-    <button class="btn-topo btn-tema" id="btn-tema" onclick="toggleThema()" title="Alternar tema claro/escuro"><span id="icone-tema">☀</span><span class="btn-topo-txt" id="label-tema"> Claro</span></button>
-    <button class="btn-topo primary" onclick="triggerImport()" title="Importar arquivos de auditoria (.json/.xlsx)">📥<span class="btn-topo-txt"> Importar</span></button>
-    <button class="btn-topo" onclick="abrirModalFaturamento()" title="Importar base de faturamento ou ajustar manualmente">📊<span class="btn-topo-txt"> Faturamento</span></button>
-    <button class="btn-topo" onclick="syncPush()" title="Publicar dados na nuvem (JSONBin)">☁<span class="btn-topo-txt"> Publicar</span></button>
-    <button class="btn-topo" onclick="exportarRankingXLS()" title="Exportar ranking (.xlsx)">📤<span class="btn-topo-txt"> Exportar</span></button>
-    <button class="btn-topo" onclick="abrirAbaConfig()" title="Configurações, backup e dados complementares">⚙<span class="btn-topo-txt"> Config</span></button>
+    <button class="btn-topo btn-tema" id="btn-tema" onclick="toggleThema()" title="Alternar entre tema claro e escuro"><span id="icone-tema">☀</span><span class="btn-topo-txt" id="label-tema"> Claro</span></button>
+    <button class="btn-topo primary" onclick="triggerImport()" title="Importar arquivos de auditoria (.json) ou relatório de faturamento CFOP (.xls/.xlsx). O tipo do arquivo é detectado automaticamente.">📥<span class="btn-topo-txt"> Importar</span></button>
+    <button class="btn-topo" onclick="abrirModalFaturamento()" title="Base de faturamento — usada para calcular o % Vencidos/Faturamento. Permite ajuste manual ou importação de arquivo JSON com histórico mensal por filial.">💰<span class="btn-topo-txt"> Faturamento</span></button>
+    <button class="btn-topo" onclick="syncPush()" title="Publicar dados na nuvem (JSONBin) para que todos os usuários com o link vejam o painel atualizado. Requer Master Key configurada em ⚙ Config.">☁<span class="btn-topo-txt"> Publicar</span></button>
+    <button class="btn-topo" onclick="exportarRankingXLS()" title="Exportar ranking completo em planilha Excel (.xlsx) com 5 abas: Anual, Por Período, Por Regional, Por Auditor e Cobertura.">📤<span class="btn-topo-txt"> Exportar XLS</span></button>
+    <button class="btn-topo" onclick="abrirAbaConfig()" title="Configurações do ranking (ano, data da premiação, bônus), sincronização em nuvem (JSONBin), base de faturamento e backup completo.">⚙<span class="btn-topo-txt"> Config</span></button>
   </div>
   </div><!-- /topo-btns-wrap -->
   <input type="file" id="inp-import" accept=".json,.xlsx,.xls" multiple style="display:none;" onchange="processarArquivosImportados(this)">
@@ -441,13 +450,20 @@ body,#topo,.kpi,.chart-card,.rank-wrap,.modal-box,.arq-card,.drop-zone,.btn-topo
 
 <!-- MODAL FATURAMENTO -->
 <div class="modal-overlay hidden" id="modal-fat">
-  <div class="modal-box">
-    <div class="modal-title">📊 Faturamento das Filiais</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-      <button class="btn-modal sec" onclick="document.getElementById('inp-fat-json').click()" title="Importar base de faturamento por período (JSON gerado pelo sistema)">📂 Importar Base JSON</button>
-      <button class="btn-modal sec" onclick="fecharModal('modal-fat');abrirFatHistoricoView()" title="Ver tabela completa de faturamento carregado">👁 Ver Base Carregada</button>
+  <div class="modal-box" style="max-width:600px;">
+    <div class="modal-title">💰 Faturamento das Filiais</div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.7;">
+      <strong style="color:var(--text);">Para que serve:</strong> o faturamento mensal é usado para calcular o <strong>% Vencidos/Faturamento</strong> na aba Por Período. Sem ele, esse indicador não é calculado.<br><br>
+      <strong style="color:var(--text);">Como preencher:</strong><br>
+      <span style="display:block;margin-left:8px;">① <strong>Via Relatório CFOP (recomendado):</strong> use o botão <strong>📥 Importar</strong> no cabeçalho e selecione o arquivo <code>.xls</code> exportado do sistema (Resumo CFOP). O painel reconhece e acumula automaticamente.</span>
+      <span style="display:block;margin-left:8px;margin-top:4px;">② <strong>Via arquivo JSON salvo:</strong> se você exportou uma base JSON de faturamento de uma sessão anterior, importe abaixo.</span>
+      <span style="display:block;margin-left:8px;margin-top:4px;">③ <strong>Manual:</strong> para ajuste pontual, preencha o valor mensal de uma filial nos campos abaixo.</span>
     </div>
-    <div class="modal-sub">Ajuste manual por filial abaixo. Sem faturamento o componente Vencidos assume 0%.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+      <button class="btn-modal sec" onclick="document.getElementById('inp-fat-json').click()" title="Importar arquivo JSON com histórico de faturamento por filial e período (gerado pelo próprio painel em sessão anterior)">📂 Importar JSON salvo</button>
+      <button class="btn-modal sec" onclick="fecharModal('modal-fat');abrirFatHistoricoView()" title="Ver tabela completa do faturamento carregado (Filial × Período)">👁 Ver Base Carregada</button>
+    </div>
+    <div class="modal-sub">Ajuste manual por filial (opcional — sobrescrito pelo CFOP ou JSON):</div>
     <div id="fat-rows"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
       <button class="btn-modal sec" onclick="fecharModal('modal-fat')">Cancelar</button>
@@ -482,23 +498,6 @@ body,#topo,.kpi,.chart-card,.rank-wrap,.modal-box,.arq-card,.drop-zone,.btn-topo
   </div>
 </div>
 
-<!-- MODAL CONFIG -->
-<div class="modal-overlay hidden" id="modal-config">
-  <div class="modal-box">
-    <div class="modal-title">⚙ Configurações do Ranking</div>
-    <div class="modal-sub">Parâmetros usados no cálculo e nos certificados.</div>
-    <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;">Data da Premiação (Convenção ADM)</label>
-    <input id="cfg-data-premio" type="text" placeholder="Ex: 15/12/2026" style="width:100%;margin:6px 0 16px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);">
-    <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;">Ano de Referência do Ranking Anual</label>
-    <input id="cfg-ano" type="number" placeholder="2026" style="width:100%;margin:6px 0 16px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);">
-    <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;">Teto do Bônus de Volume (pts)</label>
-    <input id="cfg-bonus" type="number" step="0.5" value="5" style="width:100%;margin:6px 0 16px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);">
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button class="btn-modal sec" onclick="fecharModal('modal-config')">Cancelar</button>
-      <button class="btn-modal primary" onclick="salvarConfig()">✔ Salvar</button>
-    </div>
-  </div>
-</div>
 
 <!-- MODAL AGENDA DA SEMANA -->
 <div class="modal-overlay hidden" id="modal-agenda">
@@ -1284,7 +1283,12 @@ function renderAbaAnual() {
       </div>
     </div>
 
-    ${metodHTML()}
+    <details style="margin-bottom:14px;">
+      <summary style="cursor:pointer;padding:9px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;font-weight:600;color:var(--text2);user-select:none;list-style:none;display:flex;align-items:center;gap:6px;">
+        <span>📐</span><span>Como o score é calculado (fórmula de pontuação)</span><span style="margin-left:auto;font-size:10px;color:var(--text3)">clique para expandir</span>
+      </summary>
+      <div style="margin-top:4px;">${metodHTML()}</div>
+    </details>
 
     <div class="filtros-bar">
       <input class="busca" id="busca-anual" placeholder="Buscar filial/supervisor..." oninput="renderTabelaAnual()">
@@ -1412,7 +1416,7 @@ function renderAbaAuditor() {
   const coresFundo = ['rgba(242,196,81,.1)','rgba(184,196,208,.07)','rgba(205,127,50,.07)'];
   const coresTxt = ['var(--ouro)','var(--prata)','var(--bronze)'];
   c.innerHTML = `
-    <div class="info-bar">👤 <strong>Ranking Individual por Auditor</strong> — média das filiais de cada auditor ao longo das ${totalRod} rodadas previstas (${CONFIG.rodadasConfianca||2} para as filiais de confiança da diretoria: Cristalina, Jataí, Uberlândia e Cuiabá). Auditores são comparados pelo score médio — a quantidade de filiais não interfere no resultado final.</div>
+    <div class="info-bar">👤 <strong>Ranking por Auditor</strong> — média de todas as filiais de cada auditor ao longo do ano. A quantidade de filiais não interfere: todos são comparados pelo score médio. Rodadas previstas: <strong>${totalRod}</strong> por filial (🤝 ${CONFIG.rodadasConfianca||2} para Cristalina, Jataí, Uberlândia e Cuiabá). <span style="font-size:11px;cursor:pointer;color:var(--brand-dk);text-decoration:underline;" onclick="abrirAbaConfig()">Ajustar rodadas →</span></div>
 
     <div class="secao"><div class="secao-titulo">Pódio dos Auditores</div>
       <div class="premio-grid">
@@ -1468,8 +1472,7 @@ function renderAbaAuditor() {
       </div>
     </div>
     <div style="font-size:11px;color:var(--text3);margin-top:10px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;">
-      <strong>Como funciona:</strong> Score do auditor = média simples de <em>todas</em> as auditorias realizadas nas suas filiais, incluindo todas as rodadas. O critério é justo pois cada auditor é avaliado pelas suas próprias filiais ao longo das ${totalRod} rodadas (🤝 ${CONFIG.rodadasConfianca||2} para Cristalina, Jataí, Uberlândia e Cuiabá).
-      Ajuste o número de rodadas previstas nas <strong>⚙ Configurações</strong>.
+      <strong>Progresso</strong> = rodadas realizadas ÷ meta total de rodadas previstas para as filiais do auditor. Cada filial tem seu próprio auditor responsável definido na base de filiais.
     </div>`;
 }
 
@@ -1478,13 +1481,12 @@ function renderAbaPeriodo() {
   const c = document.getElementById('conteudo-abas');
   const periodos=[...new Set(REGISTROS.map(r=>r.periodo).filter(Boolean))].sort();
   c.innerHTML = `
-    <div class="info-bar">📅 <strong>Ranking por Período</strong> — snapshot de cada auditoria. Use para acompanhar mês a mês. O ranking oficial da premiação é o Anual.</div>
+    <div class="info-bar">📅 <strong>Ranking por Período</strong> — snapshot de cada auditoria realizada. Use para acompanhar mês a mês. O ranking oficial da premiação é o <strong>Ranking Anual</strong>. <span style="font-size:11px;cursor:pointer;color:var(--brand-dk);text-decoration:underline;" onclick="mudarAba('guia')">Ver fórmula de pontuação →</span></div>
     <div class="periodo-tags" id="ptags"></div>
-    ${metodHTML()}
     <div class="filtros-bar">
       <input class="busca" id="busca-per" placeholder="Buscar filial..." oninput="renderTabelaPeriodo()">
       <select class="sel-sm" id="fil-tipo-per" onchange="renderTabelaPeriodo()">
-        <option value="">Todos os dados</option><option value="completo">Completos (P+C+V)</option>
+        <option value="">Todos os dados</option><option value="completo">Completos (Ped+Can+Venc)</option>
         <option value="ped">Só Pedido/Canhoto</option><option value="venc">Só Vencidos</option>
       </select>
     </div>
@@ -1492,13 +1494,21 @@ function renderAbaPeriodo() {
       <div class="rank-header"><span>Ranking do Período</span><span id="cnt-per" style="font-size:11px;"></span></div>
       <div style="overflow-x:auto;"><table class="rank-table">
         <thead><tr>
-          <th style="text-align:center;width:46px;">#</th><th>Filial</th><th>Período</th>
-          <th style="text-align:center;">Score</th>
-          <th style="text-align:center;">🔴Sem</th><th style="text-align:center;">🔵Ped</th>
-          <th style="text-align:center;">🟡Venc</th><th style="text-align:center;">🟢Can</th>
-          <th style="text-align:center;">Bônus</th>
-          <th style="text-align:right;">%Ped</th><th style="text-align:right;">%Can</th>
-          <th style="text-align:right;">Vlr Venc.</th><th style="text-align:right;">Vlr Faturamento</th><th style="text-align:right;">%Venc/Fat.</th><th style="text-align:center;">Obs.</th><th style="text-align:center;">Dados</th>
+          <th style="text-align:center;width:46px;">#</th>
+          <th>Filial</th>
+          <th title="Mês/ano da auditoria">Período</th>
+          <th style="text-align:center;" title="Score final calculado (máx 100 + bônus)">Score</th>
+          <th style="text-align:center;" title="Semente: 40pts se zero pendências de semente, 0 caso contrário">🔴 Sem.</th>
+          <th style="text-align:center;" title="Pedido/Canhoto: 30pts se ≥95% conferidos, 0 caso contrário">🔵 Ped.</th>
+          <th style="text-align:center;" title="Vencidos: até 20pts conforme % sobre faturamento (0–0.5% = máx)">🟡 Venc.</th>
+          <th style="text-align:center;" title="Canhoto: 10pts se ≥95% conferidos, 0 caso contrário">🟢 Can.</th>
+          <th style="text-align:center;" title="Bônus de volume: até ${CONFIG.tetoBonus}pts proporcional ao total de itens conferidos">Bônus</th>
+          <th style="text-align:right;" title="% de pedidos conferidos (precisa ≥95% para pontuar)">% Ped.</th>
+          <th style="text-align:right;" title="% de canhotos confirmados (precisa ≥95% para pontuar)">% Can.</th>
+          <th style="text-align:right;" title="Valor total de produtos vencidos encontrados">Vlr. Venc.</th>
+          <th style="text-align:right;" title="% de vencidos sobre faturamento — métrica principal de vencidos (requer base de faturamento carregada via 💰 Faturamento ou 📥 Importar CFOP)">%Venc/Fat.</th>
+          <th style="text-align:center;" title="Observações livres sobre esta auditoria">Obs.</th>
+          <th style="text-align:center;" title="Quais tipos de dados estão presentes neste registro">Dados</th>
         </tr></thead>
         <tbody id="body-per"></tbody>
       </table></div>
@@ -1552,12 +1562,11 @@ function renderTabelaPeriodo() {
       <td style="text-align:right;${r.pctPed>=95?'color:var(--green-dk)':r.pctPed?'color:var(--amber-dk)':'color:var(--text3)'}">${r.temPed?r.pctPed.toFixed(1)+'%':'—'}</td>
       <td style="text-align:right;${r.pctCan>=95?'color:var(--green-dk)':r.pctCan?'color:var(--amber-dk)':'color:var(--text3)'}">${r.temPed?r.pctCan.toFixed(1)+'%':'—'}</td>
       <td style="text-align:right;${r.valorVencidos>0?'color:var(--red-dk)':'color:var(--text3)'}">${r.temVenc?fmt(r.valorVencidos):'—'}</td>
-      <td style="text-align:right;color:var(--text2);">${r.faturamento>0?fmt(r.faturamento):'—'}</td>
-      <td style="text-align:right;${r.pctVencFat!=null?(r.pctVencFat<=2?'color:var(--green-dk)':r.pctVencFat<=5?'color:var(--amber-dk)':'color:var(--red-dk)'):'color:var(--text3)'}">${r.pctVencFat!=null?r.pctVencFat.toFixed(2)+'%':'—'}</td>
+      <td style="text-align:right;${r.pctVencFat!=null?(r.pctVencFat<=2?'color:var(--green-dk)':r.pctVencFat<=5?'color:var(--amber-dk)':'color:var(--red-dk)'):'color:var(--text3)'}" title="${r.faturamento>0?'Faturamento do período: '+fmt(r.faturamento):''}">${r.pctVencFat!=null?r.pctVencFat.toFixed(2)+'%':(r.temVenc&&!r.faturamento?'<span style="font-size:10px;color:var(--amber-dk);" title="Carregue a base de faturamento via 💰 Faturamento no cabeçalho">sem fat.</span>':'—')}</td>
       <td><input class="obs-input" value="${(r.obs||'').replace(/"/g,'&quot;')}" placeholder="—" onchange="salvarObs('${chaveObs}',this.value)"></td>
       <td style="text-align:center;">${dados}</td>
     </tr>`;
-  }).join('') || `<tr><td colspan="16" style="text-align:center;padding:40px;color:var(--text3)">Nenhum registro.</td></tr>`;
+  }).join('') || `<tr><td colspan="15" style="text-align:center;padding:40px;color:var(--text3)">Nenhum registro.</td></tr>`;
 }
 
 function salvarObs(chave, val){ OBSERVACOES[chave]=val; const r=REGISTROS.find(x=>(x.filial+'|'+x.periodo).toUpperCase()===chave); if(r)r.obs=val; }
@@ -1576,21 +1585,33 @@ function renderAbaRegional() {
   }).sort((a,b)=>b.mediaScore-a.mediaScore);
 
   c.innerHTML = `
-    <div class="info-bar">🗺 <strong>Ranking por Regional</strong> — média das filiais de cada regional. Mostra qual regional está conduzindo melhor suas lojas como um todo.</div>
+    <div class="info-bar">🗺 <strong>Ranking por Regional</strong> — média das filiais de cada regional. Mostra qual regional está conduzindo melhor suas lojas como um todo. Clique em uma regional para ver todas as suas filiais.</div>
     <div class="rank-wrap">
       <div class="rank-header"><span>Regionais</span><span style="font-size:11px;">${ranking.length} regionais</span></div>
       <div style="overflow-x:auto;"><table class="rank-table">
-        <thead><tr><th style="text-align:center;width:46px;">#</th><th>Regional</th><th style="text-align:center;">Filiais</th><th style="text-align:center;">Score Médio</th><th>Melhor Filial</th><th>Pior Filial</th></tr></thead>
+        <thead><tr>
+          <th style="text-align:center;width:46px;">#</th>
+          <th>Regional</th>
+          <th style="text-align:center;" title="Número de filiais nesta regional">Filiais</th>
+          <th style="text-align:center;" title="Média simples dos scores anuais de todas as filiais da regional">Score Médio</th>
+          <th title="Filial com maior score médio anual na regional">Melhor Filial</th>
+          <th title="Filial com menor score médio anual na regional">Pior Filial</th>
+        </tr></thead>
         <tbody>${ranking.map((r,i)=>{
           const pos=i+1, posCls=pos===1?'ouro':pos===2?'prata':pos===3?'bronze':'normal';
-          return `<tr class="${pos<=3?'pos'+pos:''}">
+          const filChips=r.fils.sort((a,b)=>b.mediaScore-a.mediaScore).map(f=>`<span class="cob-chip ${f.mediaScore>=70?'cob-ok':'cob-falta'}" style="font-size:10.5px;padding:3px 9px;" title="${f.filialNome}">${f.filial} · ${f.mediaScore}</span>`).join(' ');
+          return `<tr class="${pos<=3?'pos'+pos:''}" style="cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'table-row':'none'" title="Clique para ver as filiais desta regional">
             <td style="text-align:center;"><div class="pos-badge ${posCls}">${pos}</div></td>
             <td><b>${r.regional}</b></td>
             <td style="text-align:center;">${r.filiais}</td>
             <td style="text-align:center;"><span class="score-pill ${scClass(r.mediaScore)}">${r.mediaScore}</span></td>
-            <td style="font-size:12px;color:var(--green-dk)">${r.melhor.filial} (${r.melhor.mediaScore})</td>
-            <td style="font-size:12px;color:var(--red-dk)">${r.pior.filial} (${r.pior.mediaScore})</td>
-          </tr>`;
+            <td style="font-size:12px;color:var(--green-dk);"><b>${r.melhor.filial}</b> · ${r.melhor.mediaScore} pts<br><span style="color:var(--text3);font-size:10px;">${r.melhor.filialNome||r.melhor.filial}</span></td>
+            <td style="font-size:12px;color:var(--red-dk);"><b>${r.pior.filial}</b> · ${r.pior.mediaScore} pts<br><span style="color:var(--text3);font-size:10px;">${r.pior.filialNome||r.pior.filial}</span></td>
+          </tr>
+          <tr style="display:none;" class="${pos<=3?'pos'+pos:''}"><td colspan="6" style="padding:10px 16px 14px;background:var(--bg3);">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:8px;">Filiais desta regional — score médio anual</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">${filChips}</div>
+          </td></tr>`;
         }).join('')}</tbody>
       </table></div>
     </div>`;
@@ -1611,9 +1632,9 @@ function renderAbaEvolucao() {
   }).filter(Boolean).sort((a,b)=>b.delta-a.delta);
 
   c.innerHTML = `
-    <div class="info-bar">📈 <strong>Evolução do Score</strong> — acompanha o desempenho mês a mês. O destaque de maior evolução é <em>informativo</em> (não é categoria de premiação).</div>
+    <div class="info-bar">📈 <strong>Evolução do Score</strong> — acompanha o desempenho de cada filial ao longo dos períodos. Mostra tendências de melhora ou queda. <em>A maior evolução é informativa e não é critério de premiação.</em></div>
     ${periodos.length<2?'<div style="text-align:center;padding:40px;color:var(--text3)">São necessários pelo menos 2 períodos para mostrar evolução. Importe mais auditorias.</div>':`
-    <div class="chart-card"><div class="chart-title">Score por Período (cada linha = uma filial)</div><canvas id="canvas-evol" height="110"></canvas></div>
+    <div class="chart-card"><div class="chart-title">Score por Período — cada linha representa uma filial (máx 12 exibidas)</div><canvas id="canvas-evol" height="110"></canvas></div>
     <div class="secao"><div class="secao-titulo">🚀 Maior Evolução no Ano (informativo)</div>
       <div class="premio-grid">
         ${evol.slice(0,3).map((e,i)=>`<div class="premio-card" style="border:1px solid var(--green);background:var(--green-lt);">
@@ -1652,7 +1673,7 @@ function renderAbaCobertura() {
   const pct=Math.round(auditadas.size/todas.length*100);
 
   c.innerHTML = `
-    <div class="info-bar">✅ <strong>Cobertura de Auditorias</strong> — quantas das ${todas.length} filiais já foram auditadas. Premiar num universo incompleto pode ser injusto: confira a cobertura antes da convenção.</div>
+    <div class="info-bar">✅ <strong>Cobertura de Auditorias</strong> — quantas das ${todas.length} filiais já possuem pelo menos uma auditoria registrada. Filiais pendentes mostram o auditor responsável. Confira a cobertura antes de emitir o ranking final para a premiação.</div>
     <div class="kpi-grid" style="margin-bottom:20px;">
       <div class="kpi g"><div class="kl">Filiais Auditadas</div><div class="kv">${auditadas.size}/${todas.length}</div><div class="ks">${pct}% de cobertura</div></div>
       <div class="kpi ${faltantes.length?'r':'g'}"><div class="kl">Ainda Não Auditadas</div><div class="kv">${faltantes.length}</div><div class="ks">${faltantes.length?'Pendentes neste ano':'Cobertura completa 🎉'}</div></div>
@@ -3824,20 +3845,6 @@ function salvarFaturamentos() {
   processarERenderizar();
 }
 
-function abrirModalConfig() {
-  document.getElementById('cfg-data-premio').value=CONFIG.dataPremio||'';
-  document.getElementById('cfg-ano').value=CONFIG.ano||new Date().getFullYear();
-  document.getElementById('cfg-bonus').value=CONFIG.tetoBonus;
-  document.getElementById('modal-config').classList.remove('hidden');
-}
-
-function salvarConfig() {
-  CONFIG.dataPremio=document.getElementById('cfg-data-premio').value||'';
-  CONFIG.ano=parseInt(document.getElementById('cfg-ano').value)||new Date().getFullYear();
-  CONFIG.tetoBonus=parseFloat(document.getElementById('cfg-bonus').value)||5;
-  fecharModal('modal-config');
-  if(REGISTROS.length) processarERenderizar();
-}
 
 // ============================================================
 // EXPORTAÇÃO
@@ -4857,7 +4864,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
 </script>
 
 <!-- Botão qualidade discreta -->
-<button id="btn-qualidade" onclick="event.stopPropagation();_qualidadeAbrir()" title="Verificação de qualidade dos dados">⚑</button>
+<button id="btn-qualidade" onclick="event.stopPropagation();_qualidadeAbrir()" title="Verificar qualidade dos dados — detecta duplicatas, filiais sem faturamento, registros inconsistentes e outros avisos">⚑</button>
 
 <!-- Painel qualidade -->
 <div id="painel-qualidade">
