@@ -1002,9 +1002,9 @@ function _regVazio(sigla, periodo) {
     regional: info.regional||'—', auditor: info.auditor||'—', coordenador: info.coordenador||'—',
     supervisor: info.supervisor||'—', estado: info.estado||'', regiao: info.regiao||'', periodo,
     temPed:false, temVenc:false,
-    pedConf:0,pedAss:0,pedPend:0,pctPed:0,semPend:0,
-    canConf:0,canAss:0,canPend:0,pctCan:0,
-    totalLotes:0,totalVencidos:0,valorVencidos:0,semGiroProd:0,
+    pedConf:0,pctPed:0,semPend:0,
+    canConf:0,pctCan:0,
+    totalVencidos:0,valorVencidos:0,
     faturamento:0,pctVencFat:null,
     sSem:0,sPed:0,sVenc:0,sCan:0,base:0,bonus:0,scoreFinal:0,
     dataAuditoria:'',
@@ -1058,9 +1058,9 @@ function processarERenderizar() {
       if (!map[chave]) map[chave] = _regVazio(d.filial, periodo);
       const r = map[chave];
       r.temPed=true;
-      r.pedConf=+d.pedConf||0; r.pedAss=+d.pedAss||0; r.pedPend=+d.pedPend||0; r.pctPed=+d.pctPed||0;
+      r.pedConf=+d.pedConf||0; r.pctPed=+d.pctPed||0;
       r.semPend=+d.semPend||0;
-      r.canConf=+d.canConf||0; r.canAss=+d.canAss||0; r.canPend=+d.canPend||0; r.pctCan=+d.pctCan||0;
+      r.canConf=+d.canConf||0; r.pctCan=+d.pctCan||0;
       if (d.gerente) r.gerente = r.gerente||d.gerente;
     });
   });
@@ -1074,8 +1074,8 @@ function processarERenderizar() {
       if (!map[chave]) map[chave] = _regVazio(filial, periodo);
       const r = map[chave];
       r.temVenc=true;
-      r.totalLotes=+d.totalLotes||0; r.totalVencidos=+d.totalVencidos||0;
-      r.valorVencidos=+d.valorVencidos||0; r.semGiroProd=+d.semGiroProd||0;
+      r.totalVencidos=+d.totalVencidos||0;
+      r.valorVencidos=+d.valorVencidos||0;
       r.dataAuditoria = d.dataAuditoria||r.dataAuditoria;
       // Se o arquivo trouxe dados da base (v1.1+), usa-os como reforço
       if (d.regional && r.regional==='—') r.regional = d.regional;
