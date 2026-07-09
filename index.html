@@ -1058,9 +1058,9 @@ function processarERenderizar() {
       if (!map[chave]) map[chave] = _regVazio(d.filial, periodo);
       const r = map[chave];
       r.temPed=true;
-      r.pedConf=+d.pedConf||0; r.pedAss=+d.pedAss||0; r.pedPend=+d.pedPend||0; r.pctPed=+d.pctPed||0;
+      r.pedConf=+d.pedConf||0; r.pctPed=+d.pctPed||0;
       r.semPend=+d.semPend||0;
-      r.canConf=+d.canConf||0; r.canAss=+d.canAss||0; r.canPend=+d.canPend||0; r.pctCan=+d.pctCan||0;
+      r.canConf=+d.canConf||0; r.pctCan=+d.pctCan||0;
       if (d.gerente) r.gerente = r.gerente||d.gerente;
     });
   });
@@ -1074,8 +1074,8 @@ function processarERenderizar() {
       if (!map[chave]) map[chave] = _regVazio(filial, periodo);
       const r = map[chave];
       r.temVenc=true;
-      r.totalLotes=+d.totalLotes||0; r.totalVencidos=+d.totalVencidos||0;
-      r.valorVencidos=+d.valorVencidos||0; r.semGiroProd=+d.semGiroProd||0;
+      r.totalVencidos=+d.totalVencidos||0;
+      r.valorVencidos=+d.valorVencidos||0;
       r.dataAuditoria = d.dataAuditoria||r.dataAuditoria;
       // Se o arquivo trouxe dados da base (v1.1+), usa-os como reforço
       if (d.regional && r.regional==='—') r.regional = d.regional;
