@@ -2825,6 +2825,214 @@ function _compExportarPNG() {
   link.click();
 }
 
+/* ── Export PNG — apenas 2026 (apresentação) ─────────────── */
+function _compExportarPNG2026() {
+  const { dados, anoA, anoB, posicoes } = _compCalcDados();
+  if (!dados.length) { alert('Sem dados para exportar.'); return; }
+
+  const dr = [...dados];
+  if      (COMP_CHART_SORT === 'pct_desc') dr.sort((a,b) => (b.pct ?? -9999) - (a.pct ?? -9999));
+  else if (COMP_CHART_SORT === 'pct_asc')  dr.sort((a,b) => (a.pct ?? 9999)  - (b.pct ?? 9999));
+  else                                      dr.sort((a,b) => (a.numero ?? 9999) - (b.numero ?? 9999));
+  const sortLbl = COMP_CHART_SORT === 'pct_desc' ? 'maior variação → menor' : COMP_CHART_SORT === 'pct_asc' ? 'menor variação → maior' : 'Nº filial';
+
+  const PL = p => ['','1ª','2ª','3ª','4ª','5ª','6ª'][p]||p+'ª';
+  const posLbl = posicoes.map(PL).join(' + ');
+
+  const EW = 1500;
+  const SCALE = 2;
+  const FONT = '"Segoe UI", Arial, sans-serif';
+  const PX = { t:0, r:52, b:0, l:52 };
+  const HEADER_H = 110;
+  const KPI_H = 76;
+  const CHART_PL = 92, CHART_PR = 68;
+  const ROW_H = 32, BAR_H = 15;
+  const LEGEND_H = 38;
+  const n = dr.length;
+  const CHART_INNER_H = LEGEND_H + n * ROW_H + 6;
+  const FOOTER_H = 40;
+  const EH = HEADER_H + KPI_H + CHART_INNER_H + FOOTER_H;
+
+  const C = {
+    brand:'#1462ba', brandDk:'#0d4899', brandLt:'#d8eafc',
+    green:'#177040', greenLt:'#d8f0e6',
+    red:'#b82e20',   redLt:'#fde9e7',
+    amber:'#a84f0c',
+    bg:'#ffffff', bg2:'#f4f7fb', bg3:'#e8eef6',
+    text:'#0c1b2e', text2:'#435f78', text3:'#7e96ad',
+    border:'#c8d8ea', border2:'#a5bdd4',
+  };
+
+  const cv = document.createElement('canvas');
+  cv.width = EW * SCALE; cv.height = EH * SCALE;
+  const ctx = cv.getContext('2d');
+  ctx.scale(SCALE, SCALE);
+
+  const rr = (x,y,w,h,r) => {
+    if (w<=0||h<=0) return;
+    r=Math.min(r,w/2,h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.closePath();
+  };
+
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, EW, EH);
+
+  // HEADER
+  const grad = ctx.createLinearGradient(0, 0, EW, 0);
+  grad.addColorStop(0, C.brandDk); grad.addColorStop(1, C.brand);
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, EW, HEADER_H);
+  ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(0, 0, 6, HEADER_H);
+
+  const logoEl = document.getElementById('logo-header-img');
+  const logoSize = 58;
+  let logoDrawn = false;
+  if (logoEl && logoEl.complete && logoEl.naturalWidth > 0) {
+    try {
+      ctx.save(); ctx.beginPath();
+      rr(PX.l + 14, (HEADER_H - logoSize)/2, logoSize, logoSize, 10);
+      ctx.clip(); ctx.drawImage(logoEl, PX.l + 14, (HEADER_H - logoSize)/2, logoSize, logoSize);
+      ctx.restore(); logoDrawn = true;
+    } catch(e) { logoDrawn = false; }
+  }
+  const textX = PX.l + (logoDrawn ? logoSize + 26 : 14);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold 26px ${FONT}`; ctx.textAlign = 'left';
+  ctx.fillText('Comparativo de Auditorias · AGROQUIMA', textX, 42);
+  const regLbl  = COMP_REGIONAL || 'Todas as Regionais';
+  const audLbl  = COMP_AUDITOR  || 'Todos os Auditores';
+  const filLbl  = COMP_FILIAIS_SEL.size ? [...COMP_FILIAIS_SEL].sort().join(', ') : `${n} filial(is)`;
+  ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = `13px ${FONT}`;
+  ctx.fillText(`Posição: ${posLbl}  ·  Anos: ${anoA} vs ${anoB}  ·  Regional: ${regLbl}  ·  Auditor: ${audLbl}  ·  Filiais: ${filLbl}`, textX, 70);
+  ctx.font = `12px ${FONT}`; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillText(`* Auditórias "Em andamento" excluídas  ·  Gráfico: apenas ${anoB}  ·  Ordenado por: ${sortLbl}`, textX, 92);
+
+  // KPI ROW (idêntico ao export original)
+  const comAmbos = dr.filter(d=>d.avgA!=null&&d.avgB!=null);
+  const mediaA = comAmbos.length ? Math.round(comAmbos.reduce((s,d)=>s+d.avgA,0)/comAmbos.length*10)/10 : null;
+  const mediaB = comAmbos.length ? Math.round(comAmbos.reduce((s,d)=>s+d.avgB,0)/comAmbos.length*10)/10 : null;
+  const varG   = (mediaA&&mediaB&&mediaA!==0) ? Math.round(((mediaB-mediaA)/mediaA)*1000)/10 : null;
+  const melhor = comAmbos.length ? comAmbos.reduce((a,b)=>(b.pct||0)>(a.pct||0)?b:a,comAmbos[0]) : null;
+  const pior   = comAmbos.length ? comAmbos.reduce((a,b)=>(b.pct||0)<(a.pct||0)?b:a,comAmbos[0]) : null;
+  const sg = v => v>=0?'+':'';
+
+  const kpis = [
+    { l:`Média Geral ${anoA}`, v:`${mediaA??'—'}`, sub:`${posLbl}`, accent:C.brand },
+    { l:`Média Geral ${anoB}`, v:`${mediaB??'—'}`, sub:`${posLbl}`, accent:C.brand },
+    { l:'Variação Geral', v:varG!=null?`${sg(varG)}${varG}%`:'—', sub:varG!=null?`${sg(mediaB-mediaA)}${(mediaB-mediaA).toFixed(1)} ponto(s)`:'', accent:varG!=null?(varG>=0?C.green:C.red):C.brand },
+    ...(melhor&&melhor.pct!=null?[{ l:'Maior Melhoria', v:`${sg(melhor.pct)}${melhor.pct}%`, sub:`${melhor.filial} · ${sg(melhor.delta)}${melhor.delta} pts`, accent:C.green }]:[]),
+    ...(pior&&pior.pct!=null&&pior.pct<0?[{ l:'Maior Queda', v:`${pior.pct}%`, sub:`${pior.filial} · ${pior.delta} pts`, accent:C.red }]:[]),
+  ];
+
+  const kpiY = HEADER_H + 10;
+  const kpiCardH = KPI_H - 16;
+  const totalKpiW = EW - PX.l - PX.r;
+  const kpiW = (totalKpiW - (kpis.length-1)*10) / kpis.length;
+  kpis.forEach((k, i) => {
+    const kx = PX.l + i*(kpiW+10);
+    ctx.fillStyle = C.bg2; rr(kx, kpiY, kpiW, kpiCardH, 8); ctx.fill();
+    ctx.fillStyle = k.accent; ctx.fillRect(kx, kpiY, 4, kpiCardH);
+    rr(kx, kpiY, 4, kpiCardH, 2); ctx.fill();
+    ctx.fillStyle = C.text3; ctx.font=`bold 9px ${FONT}`; ctx.textAlign='left';
+    ctx.fillText(k.l.toUpperCase(), kx+12, kpiY+16);
+    ctx.fillStyle = k.accent; ctx.font=`bold 22px ${FONT}`;
+    ctx.fillText(k.v, kx+12, kpiY+42);
+    if (k.sub) { ctx.fillStyle=C.text3; ctx.font=`10px ${FONT}`; ctx.fillText(k.sub, kx+12, kpiY+56); }
+  });
+
+  // CHART — apenas barras de anoB
+  const chartTopY = HEADER_H + KPI_H;
+  const chartLeft  = PX.l + CHART_PL;
+  const chartRight = PX.r + CHART_PR;
+  const chartW = EW - chartLeft - chartRight;
+  const xS = v => chartLeft + (Math.max(0,Math.min(100,v))/100)*chartW;
+
+  ctx.fillStyle = C.bg3; ctx.fillRect(0, chartTopY, EW, 1);
+
+  [0,20,40,60,80,100].forEach(v => {
+    const x = xS(v);
+    ctx.setLineDash(v===0?[]:[3,5]);
+    ctx.strokeStyle = v===0?C.border2:C.border; ctx.lineWidth = v===0?1.5:1;
+    ctx.beginPath(); ctx.moveTo(x, chartTopY+LEGEND_H-4); ctx.lineTo(x, chartTopY+LEGEND_H+n*ROW_H); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=C.text3; ctx.font=`11px ${FONT}`; ctx.textAlign='center';
+    ctx.fillText(v, x, chartTopY+LEGEND_H-8);
+  });
+
+  // Legenda — apenas anoB
+  const lItems=[
+    {l:`${anoB} · Melhoria vs ${anoA}`, c:C.green},
+    {l:`${anoB} · Queda vs ${anoA}`, c:C.red},
+  ];
+  let lx = chartLeft;
+  const ly = chartTopY + 20;
+  lItems.forEach(({l,c})=>{
+    ctx.fillStyle=c; rr(lx,ly-10,13,13,2); ctx.fill();
+    ctx.fillStyle=C.text2; ctx.font=`11px ${FONT}`; ctx.textAlign='left';
+    ctx.fillText(l, lx+18, ly);
+    lx += ctx.measureText(l).width + 36;
+  });
+
+  ctx.fillStyle=C.text3; ctx.font=`bold 10px ${FONT}`; ctx.textAlign='center';
+  ctx.fillText('Δ %', EW-PX.r-CHART_PR/2, chartTopY+LEGEND_H-8);
+
+  // Linhas de dados — barra única (anoB)
+  dr.forEach((d, i) => {
+    const rowY = chartTopY + LEGEND_H + i * ROW_H;
+    const yC = rowY + ROW_H/2;
+    const yBar = yC - BAR_H/2;
+
+    if (i%2===0) { ctx.fillStyle=C.bg2; ctx.fillRect(0,rowY,EW,ROW_H); }
+
+    // filial label (centralizado verticalmente)
+    ctx.fillStyle=C.text; ctx.font=`bold 11.5px ${FONT}`; ctx.textAlign='right';
+    ctx.fillText(d.filial, chartLeft-8, yC+4);
+    ctx.fillStyle=C.text3; ctx.font=`9.5px ${FONT}`;
+    const nm = d.nome.length>11 ? d.nome.slice(0,10)+'…' : d.nome;
+    ctx.fillText(nm, chartLeft-8, yC+15);
+
+    // Bar B (anoB)
+    if (d.avgB!=null) {
+      const bc=(d.delta==null||d.delta>=0)?C.green:C.red;
+      const bw=(d.avgB/100)*chartW;
+      ctx.fillStyle=bc+'cc'; rr(chartLeft,yBar,bw,BAR_H,2); ctx.fill();
+      const inside=bw>40;
+      ctx.fillStyle=inside?'#ffffffdd':bc; ctx.font=`bold 10px ${FONT}`;
+      ctx.textAlign=inside?'right':'left';
+      ctx.fillText(d.avgB.toFixed(1), inside?chartLeft+bw-4:chartLeft+bw+4, yBar+BAR_H-2);
+    }
+
+    // Delta
+    if (d.pct!=null) {
+      ctx.fillStyle=d.pct>=0?C.green:C.red; ctx.font=`bold 11px ${FONT}`; ctx.textAlign='center';
+      ctx.fillText(`${sg(d.pct)}${d.pct.toFixed(1)}%`, EW-PX.r-CHART_PR/2, yC+4);
+    }
+  });
+
+  const gridBottomY = chartTopY + LEGEND_H + n*ROW_H;
+  ctx.strokeStyle=C.border2; ctx.lineWidth=1; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(PX.l,gridBottomY); ctx.lineTo(EW-PX.r,gridBottomY); ctx.stroke();
+
+  // FOOTER
+  const footerY = chartTopY + LEGEND_H + n*ROW_H + 6;
+  ctx.fillStyle=C.bg3; ctx.fillRect(0, footerY, EW, FOOTER_H);
+  const now = new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  ctx.fillStyle=C.text3; ctx.font=`11px ${FONT}`; ctx.textAlign='left';
+  ctx.fillText(`Gerado em ${now}  ·  Painel de Auditoria AGROQUIMA`, PX.l, footerY+26);
+  ctx.textAlign='right';
+  ctx.fillText(`${n} filial(is)  ·  ${posLbl}  ·  ${anoA} vs ${anoB}  ·  Gráfico: ${anoB}`, EW-PX.r, footerY+26);
+
+  const link = document.createElement('a');
+  link.download = `comparativo-${anoB}-apresentacao-${posicoes.join('')}.png`;
+  link.href = cv.toDataURL('image/png');
+  link.click();
+}
+
 /* ── Import / clear functions ─────────────────────────────── */
 function _compImportarPlanilha(file) {
   if (!file) return;
@@ -3555,7 +3763,8 @@ ${detalheHTML}
       ${csBtn('numero','Nº Filial')}
       ${csBtn('pct_desc','↓ Maior variação')}
       ${csBtn('pct_asc','↑ Menor variação')}
-      <button class="btn-topo primary" onclick="_compExportarPNG()" style="padding:5px 10px;font-size:11px;margin-left:4px;">⬇ PNG</button>
+      <button class="btn-topo primary" onclick="_compExportarPNG()" style="padding:5px 10px;font-size:11px;margin-left:4px;" title="Exportar gráfico comparativo completo (barras 2025 + 2026)">⬇ PNG</button>
+      <button class="btn-topo" onclick="_compExportarPNG2026()" style="padding:5px 10px;font-size:11px;margin-left:2px;" title="Exportar para apresentação — cabeçalho com KPIs de ambos os anos, gráfico somente com as notas do ano mais recente (verde = melhora, vermelho = queda)">⬇ PNG Apresentação</button>
     </div>
   </div>
   <div style="overflow-y:auto;overflow-x:hidden;">
