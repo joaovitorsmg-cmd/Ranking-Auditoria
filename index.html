@@ -2374,9 +2374,13 @@ function _rcRect(ctx, x, y, w, h, r) {
 function _compCV() {
   const s = getComputedStyle(document.documentElement);
   const v = n => s.getPropertyValue(n).trim();
+  const dk = document.documentElement.getAttribute('data-theme') === 'dark';
+  // Paleta AGROQUIMA: escuro/royal/derivado no tema claro; versões mais claras no tema escuro
   return {
-    barA:  v('--brand'), barA2: v('--brand-lt'),
-    green: v('--green'), red: v('--red'),
+    barA:  dk ? '#7aabd6' : '#002B5B',   // Ano A — navy (claro) / azul-médio (escuro)
+    barA2: v('--brand-lt'),
+    green: dk ? '#64B5F6' : '#0D47A1',   // melhoria — Azul Claro brand (escuro) / Royal (claro)
+    red:   dk ? '#a8d4f5' : '#5ba4df',   // queda — azul muito claro (escuro) / médio (claro)
     grid:  v('--border'), grid2: v('--border2'),
     axis:  v('--text3'), label: v('--text2'), text: v('--text'),
     row0:  v('--bg2'), row1: v('--bg3'),
@@ -2622,12 +2626,12 @@ function _compExportarPNG() {
   const FOOTER_H = 40;
   const EH = HEADER_H + KPI_H + CHART_INNER_H + FOOTER_H;
 
-  // ── Palette (always light — for PowerPoint) ──────────────
+  // ── Paleta AGROQUIMA (para PowerPoint — sempre fundo claro) ─
   const C = {
-    brand:'#1462ba', brandDk:'#0d4899', brandLt:'#d8eafc',
-    green:'#177040', greenLt:'#d8f0e6',
-    red:'#b82e20',   redLt:'#fde9e7',
-    amber:'#a84f0c',
+    brand:'#0D47A1',  brandDk:'#002B5B',  brandLt:'#dce9fa',  // Azul Royal / Azul Escuro
+    green:'#0D47A1',  greenLt:'#dce9fa',                       // melhoria = Azul Royal
+    red:'#5ba4df',    redLt:'#e8f2fb',                         // queda = azul médio derivado
+    amber:'#2b65c4',
     bg:'#ffffff', bg2:'#f4f7fb', bg3:'#e8eef6',
     text:'#0c1b2e', text2:'#435f78', text3:'#7e96ad',
     border:'#c8d8ea', border2:'#a5bdd4',
@@ -2751,7 +2755,7 @@ function _compExportarPNG() {
 
   // Legend
   const lItems=[
-    {l:`Ano A (${anoA}) · ${posLbl}`, c:C.brand},
+    {l:`Ano A (${anoA}) · ${posLbl}`, c:C.brandDk},
     {l:`Ano B (${anoB}) · Melhora`, c:C.green},
     {l:`Ano B (${anoB}) · Queda`, c:C.red},
   ];
@@ -2784,12 +2788,12 @@ function _compExportarPNG() {
     const nm = d.nome.length>11 ? d.nome.slice(0,10)+'…' : d.nome;
     ctx.fillText(nm, chartLeft-8, yB+BAR_H+1);
 
-    // Bar A
+    // Bar A — Azul Escuro AGROQUIMA
     if (d.avgA!=null) {
       const bw=(d.avgA/100)*chartW;
-      ctx.fillStyle=C.brand+'cc'; rr(chartLeft,yA,bw,BAR_H,2); ctx.fill();
+      ctx.fillStyle=C.brandDk+'cc'; rr(chartLeft,yA,bw,BAR_H,2); ctx.fill();
       const inside = bw>32;
-      ctx.fillStyle=inside?'#ffffffdd':C.brand; ctx.font=`bold 9px ${FONT}`;
+      ctx.fillStyle=inside?'#ffffffdd':C.brandDk; ctx.font=`bold 9px ${FONT}`;
       ctx.textAlign=inside?'right':'left';
       ctx.fillText(d.avgA.toFixed(1), inside?chartLeft+bw-3:chartLeft+bw+3, yA+BAR_H-1.5);
     }
@@ -2868,16 +2872,13 @@ function _compExportarPNG2026() {
   const FOOTER_H = 44;
   const EH = HEADER_H + KPI_H + CHART_INNER_H + FOOTER_H;
 
-  // ── Paleta azul royal (sem verde/vermelho nas barras) ────
+  // ── Paleta AGROQUIMA oficial ──────────────────────────────
   const C = {
-    navy:    '#0c2d6b',   // azul navy (gradiente escuro)
-    royal:   '#1462ba',   // azul royal (gradiente claro / barras melhoria)
-    mid:     '#2b6dd4',   // azul médio
-    steel:   '#7aa3d4',   // azul aço (barras queda)
+    navy:    '#002B5B',   // Azul Escuro AGROQUIMA — gradiente escuro / Δ% positivo
+    royal:   '#0D47A1',   // Azul Royal AGROQUIMA — gradiente claro / barras melhoria
+    mid:     '#2b65c4',   // azul médio derivado
+    steel:   '#5ba4df',   // azul derivado — barras queda / Δ% negativo
     brandLt: '#dce9fa',   // azul claríssimo
-    // semântica Δ% — apenas texto, sem preencher barras
-    posClr:  '#0f6b3a',   // verde escuro (Δ% positivo)
-    negClr:  '#a02820',   // vermelho escuro (Δ% negativo)
     bg:    '#ffffff', bg2:'#f3f7fd', bg3:'#e6eef8',
     text:  '#0c1b2e', text2:'#3b5878', text3:'#6e8faa',
     border:'#c4d6ec', border2:'#9fbcd9',
@@ -3050,9 +3051,9 @@ function _compExportarPNG2026() {
       ctx.fillText(d.avgB.toFixed(1), inside?chartLeft+bw-5:chartLeft+bw+5, yBar+BAR_H-2.5);
     }
 
-    // Δ% — apenas texto, mantém semântica verde/vermelho
+    // Δ% — azul escuro (positivo) / azul médio (negativo)
     if (d.pct!=null) {
-      const tc = d.pct>=0 ? C.posClr : C.negClr;
+      const tc = d.pct>=0 ? C.navy : C.steel;
       ctx.fillStyle=tc; ctx.font=`bold 11px ${FONT}`; ctx.textAlign='center';
       ctx.fillText(`${sg(d.pct)}${d.pct.toFixed(1)}%`, EW-PX.r-CHART_PR/2, yC+4);
     }
@@ -3183,8 +3184,8 @@ function _compExportarRanking() {
   const posLbl = posicoes.map(PL).join(' + ');
 
   const C = {
-    brand:'#1462ba', brandDk:'#0d4899',
-    green:'#177040', red:'#b82e20',
+    brand:'#0D47A1', brandDk:'#002B5B',         // Azul Royal / Azul Escuro AGROQUIMA
+    green:'#0D47A1', red:'#5ba4df',              // melhoria = Royal, queda = azul médio
     bg:'#ffffff', bg2:'#f4f7fb', bg3:'#e8eef6',
     text:'#0c1b2e', text2:'#435f78', text3:'#7e96ad',
     border:'#c8d8ea', border2:'#a5bdd4',
@@ -3386,9 +3387,9 @@ function _compExportarTabelaPNG() {
   const posLbl = posicoes.map(PL).join(' + ');
 
   const C = {
-    brand:'#1462ba', brandDk:'#0d4899',
-    green:'#177040', greenDk:'#145f35',
-    red:'#b82e20', redDk:'#962d23',
+    brand:'#0D47A1', brandDk:'#002B5B',          // Azul Royal / Azul Escuro AGROQUIMA
+    green:'#0D47A1', greenDk:'#002B5B',           // melhoria = Royal (texto) / Escuro (ênfase)
+    red:'#5ba4df',   redDk:'#2b65c4',             // queda = azul médio / azul médio-escuro
     bg:'#ffffff', bg2:'#f4f7fb', bg3:'#e8eef6',
     text:'#0c1b2e', text2:'#435f78', text3:'#7e96ad',
     border:'#c8d8ea', border2:'#a5bdd4',
