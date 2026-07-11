@@ -2401,11 +2401,11 @@ function _compDesenharComparativo(dados, anoA, anoB) {
   else if (COMP_CHART_SORT === 'avgB_asc')  dr.sort((a,b) => (a.avgB ?? 9999)  - (b.avgB ?? 9999));
   else dr.sort((a,b) => (a.numero ?? 9999) - (b.numero ?? 9999));
 
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
   const C = _compCV();
 
-  const PAD = { top: 54, right: 20, bottom: 108, left: 50 };
-  const CANVAS_H = Math.max(460, Math.min(Math.round(window.innerHeight * 0.60), 580));
+  const PAD = { top: 54, right: 20, bottom: 130, left: 50 };
+  const CANVAS_H = Math.max(490, Math.min(Math.round(window.innerHeight * 0.62), 620));
   const chartH = CANVAS_H - PAD.top - PAD.bottom;
 
   const MIN_PAIR_W = 66;
@@ -2502,15 +2502,15 @@ function _compDesenharComparativo(dados, anoA, anoB) {
       ctx.fillText(sign + d.pct.toFixed(1) + '%', pairCX, deltaY);
     }
 
-    // X-axis labels: filial code + full nome, rotated -45°
+    // X-axis labels: full nome (primary) + sigla (secondary), rotated -45°
     ctx.save();
     ctx.translate(pairCX, baseline + 8);
     ctx.rotate(-Math.PI / 4);
     ctx.textAlign = 'right';
-    ctx.fillStyle = C.text;  ctx.font = 'bold 10px system-ui';
-    ctx.fillText(d.filial, 0, 0);
-    ctx.fillStyle = C.axis;  ctx.font = '9px system-ui';
-    ctx.fillText(d.nome, 0, 13);
+    ctx.fillStyle = C.text;  ctx.font = 'bold 12px system-ui';
+    ctx.fillText(d.nome, 0, 0);
+    ctx.fillStyle = C.axis;  ctx.font = '8px system-ui';
+    ctx.fillText(d.filial, 0, 15);
     ctx.restore();
   });
 }
@@ -2524,7 +2524,7 @@ function _compDesenharRanking(dados) {
   if (!sorted.length) { canvas.style.display='none'; return; }
   canvas.style.display='block';
 
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
   const W = Math.max(canvas.parentElement.clientWidth - 2, 200);
   const ROW_H = 36, BAR_H = 14;
   const PAD = { top: 38, right: 14, bottom: 10, left: 110 };
@@ -2579,10 +2579,10 @@ function _compDesenharRanking(dados) {
       ctx.fillText(String(d.numero).padStart(2,'0'), 4, yC + 3);
     }
     ctx.fillStyle = C.text; ctx.font='bold 10px system-ui'; ctx.textAlign='right';
-    ctx.fillText(d.filial, PAD.left - 5, yC - 2);
-    ctx.fillStyle = C.axis; ctx.font='8.5px system-ui'; ctx.textAlign='right';
     const nmr = d.nome.length > 16 ? d.nome.slice(0, 15) + '…' : d.nome;
-    ctx.fillText(nmr, PAD.left - 5, yC + 11);
+    ctx.fillText(nmr, PAD.left - 5, yC - 2);
+    ctx.fillStyle = C.axis; ctx.font='8px system-ui'; ctx.textAlign='right';
+    ctx.fillText(d.filial, PAD.left - 5, yC + 11);
 
     // bar
     const bColor = d.pct >= 0 ? C.green : C.red;
