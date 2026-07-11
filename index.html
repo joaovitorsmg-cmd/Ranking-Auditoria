@@ -2387,13 +2387,13 @@ function _compCV() {
   };
 }
 
-/* ── Chart 1: Horizontal score comparison ──────────────────── */
+/* ── Chart 1: Vertical grouped bar comparison ──────────────── */
 function _compDesenharComparativo(dados, anoA, anoB) {
   const canvas = document.getElementById('comp-chart-h');
   if (!canvas || !dados.length) return;
   _compCanvas = canvas;
 
-  // Sort according to chart sort setting
+  // Sort
   const dr = [...dados];
   if      (COMP_CHART_SORT === 'pct_desc')  dr.sort((a,b) => (b.pct ?? -9999)  - (a.pct ?? -9999));
   else if (COMP_CHART_SORT === 'pct_asc')   dr.sort((a,b) => (a.pct ?? 9999)   - (b.pct ?? 9999));
@@ -2402,105 +2402,116 @@ function _compDesenharComparativo(dados, anoA, anoB) {
   else dr.sort((a,b) => (a.numero ?? 9999) - (b.numero ?? 9999));
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const W = Math.max(canvas.parentElement.clientWidth - 2, 360);
-  const ROW_H = 38, BAR_H = 11, PAIR_GAP = 3;
-  const PAD = { top: 40, right: 60, bottom: 14, left: 96 };
-  const n = dr.length;
-  const H = PAD.top + n * ROW_H + PAD.bottom;
-  canvas.width = W * dpr; canvas.height = H * dpr;
-  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
   const C = _compCV();
 
-  // Fill background explicitly so row stripes are visible in both themes
-  ctx.fillStyle = C.row0; ctx.fillRect(0, 0, W, H);
+  const PAD = { top: 54, right: 20, bottom: 108, left: 50 };
+  const CANVAS_H = Math.max(460, Math.min(Math.round(window.innerHeight * 0.60), 580));
+  const chartH = CANVAS_H - PAD.top - PAD.bottom;
 
-  const chartW = W - PAD.left - PAD.right;
-  const xS = v => PAD.left + (Math.max(0, Math.min(100, v)) / 100) * chartW;
+  const MIN_PAIR_W = 66;
+  const parentW = Math.max(canvas.parentElement.clientWidth - 2, 300);
+  const minW = PAD.left + PAD.right + dr.length * MIN_PAIR_W;
+  const W = Math.max(parentW, minW);
 
-  // Vertical grid + score labels
-  [0,20,40,60,80,100].forEach(v => {
-    const x = xS(v);
-    ctx.setLineDash(v===0?[]:[3,5]);
-    ctx.strokeStyle = v===0 ? C.grid2 : C.grid; ctx.lineWidth = v===0?1.5:1;
-    ctx.beginPath(); ctx.moveTo(x, PAD.top-6); ctx.lineTo(x, H - PAD.bottom); ctx.stroke();
+  const pairW = (W - PAD.left - PAD.right) / dr.length;
+  const BAR_W = Math.min(24, Math.floor(pairW * 0.34));
+  const BAR_GAP = Math.max(2, Math.floor(pairW * 0.06));
+
+  canvas.width  = W * dpr; canvas.height = CANVAS_H * dpr;
+  canvas.style.width  = W + 'px'; canvas.style.height = CANVAS_H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = C.row0; ctx.fillRect(0, 0, W, CANVAS_H);
+
+  const yS = v => PAD.top + chartH - (Math.max(0, Math.min(100, v)) / 100) * chartH;
+
+  // Horizontal grid lines + Y axis labels
+  [0, 20, 40, 60, 80, 100].forEach(v => {
+    const y = yS(v);
+    ctx.setLineDash(v === 0 ? [] : [3, 5]);
+    ctx.strokeStyle = v === 0 ? C.grid2 : C.grid;
+    ctx.lineWidth   = v === 0 ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = C.axis; ctx.font='10px system-ui'; ctx.textAlign='center';
-    ctx.fillText(v, x, PAD.top - 8);
+    ctx.fillStyle = C.axis; ctx.font = '10px system-ui'; ctx.textAlign = 'right';
+    ctx.fillText(v, PAD.left - 5, y + 3.5);
   });
-
-  // Δ% column header
-  ctx.fillStyle = C.axis; ctx.font='bold 9px system-ui'; ctx.textAlign='center';
-  ctx.fillText('Δ %', W - PAD.right + 30, PAD.top - 8);
 
   // Legend
-  const lItems=[{l:'Ano A ('+anoA+')',c:C.barA},{l:'Ano B ('+anoB+') — subiu',c:C.green},{l:'Ano B ('+anoB+') — caiu',c:C.red}];
+  const lItems = [
+    { l: String(anoA),        c: C.barA  },
+    { l: String(anoB) + ' ↑', c: C.green },
+    { l: String(anoB) + ' ↓', c: C.red   },
+  ];
   let lx = PAD.left;
-  lItems.forEach(({l,c}) => {
-    ctx.fillStyle=c; ctx.fillRect(lx, 4, 10, 10);
-    ctx.fillStyle=C.label; ctx.font='10px system-ui'; ctx.textAlign='left';
-    ctx.fillText(l, lx+14, 14);
-    lx += ctx.measureText(l).width + 28;
+  lItems.forEach(({ l, c }) => {
+    ctx.fillStyle = c; ctx.fillRect(lx, 13, 10, 10);
+    ctx.fillStyle = C.label; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(l, lx + 14, 23);
+    lx += ctx.measureText(l).width + 32;
   });
 
-  // Rows
+  // Baseline
+  ctx.strokeStyle = C.grid2; ctx.lineWidth = 1.5; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(PAD.left, yS(0)); ctx.lineTo(W - PAD.right, yS(0)); ctx.stroke();
+
+  // Column pairs
   dr.forEach((d, i) => {
-    const rowY = PAD.top + i * ROW_H;
-    const yC = rowY + ROW_H / 2;
-    const yA = yC - PAIR_GAP/2 - BAR_H;
-    const yB = yC + PAIR_GAP/2;
+    const pairCX = PAD.left + (i + 0.5) * pairW;
+    const xA = pairCX - BAR_GAP / 2 - BAR_W;
+    const xB = pairCX + BAR_GAP / 2;
+    const baseline = yS(0);
 
-    // Alternating row bg — visible in both themes
-    ctx.fillStyle = i%2===0 ? 'rgba(128,160,210,0.07)' : 'transparent';
-    ctx.fillRect(0, rowY, W, ROW_H);
-
-    // Filial number (small, muted)
-    if (d.numero != null) {
-      ctx.fillStyle = C.axis; ctx.font='bold 9px system-ui'; ctx.textAlign='right';
-      ctx.fillText(String(d.numero).padStart(2,'0'), PAD.left - 50, yA + BAR_H);
+    if (i % 2 === 0) {
+      ctx.fillStyle = 'rgba(128,160,210,0.07)';
+      ctx.fillRect(PAD.left + i * pairW, PAD.top, pairW, chartH);
     }
-    // Sigla (bold)
-    ctx.fillStyle = C.text; ctx.font='bold 11px system-ui'; ctx.textAlign='right';
-    ctx.fillText(d.filial, PAD.left - 6, yA + BAR_H);
-    // Short name
-    ctx.fillStyle = C.axis; ctx.font='9px system-ui'; ctx.textAlign='right';
-    const nm = d.nome.length > 10 ? d.nome.slice(0,9)+'…' : d.nome;
-    ctx.fillText(nm, PAD.left - 6, yB + BAR_H);
 
-    // Bar A
+    let topmost = baseline;
+
+    // Bar A (Ano A — Azul Escuro)
     if (d.avgA != null) {
-      const bw = (d.avgA/100)*chartW;
+      const bh   = (d.avgA / 100) * chartH;
+      const yTop = yS(d.avgA);
       ctx.fillStyle = C.barA + 'cc';
-      _rcRect(ctx, PAD.left, yA, bw, BAR_H, 2); ctx.fill();
-      const inside = bw > 28;
-      ctx.fillStyle = inside ? '#ffffffcc' : C.barA;
-      ctx.font = 'bold 8.5px system-ui'; ctx.textAlign = inside ? 'right' : 'left';
-      ctx.fillText(d.avgA.toFixed(1), inside ? PAD.left+bw-3 : PAD.left+bw+3, yA+BAR_H-2);
+      _rcRect(ctx, xA, yTop, BAR_W, bh, 3); ctx.fill();
+      ctx.fillStyle = C.barA; ctx.font = 'bold 8.5px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(d.avgA.toFixed(1), xA + BAR_W / 2, yTop - 3);
+      topmost = Math.min(topmost, yTop);
     }
 
-    // Bar B
+    // Bar B (Ano B — Royal / Steel)
     if (d.avgB != null) {
-      const bColor = (d.delta==null||d.delta>=0) ? C.green : C.red;
-      const bw = (d.avgB/100)*chartW;
+      const bColor = (d.delta == null || d.delta >= 0) ? C.green : C.red;
+      const bh   = (d.avgB / 100) * chartH;
+      const yTop = yS(d.avgB);
       ctx.fillStyle = bColor + 'cc';
-      _rcRect(ctx, PAD.left, yB, bw, BAR_H, 2); ctx.fill();
-      const inside = bw > 28;
-      ctx.fillStyle = inside ? '#ffffffcc' : bColor;
-      ctx.font = 'bold 8.5px system-ui'; ctx.textAlign = inside ? 'right' : 'left';
-      ctx.fillText(d.avgB.toFixed(1), inside ? PAD.left+bw-3 : PAD.left+bw+3, yB+BAR_H-2);
+      _rcRect(ctx, xB, yTop, BAR_W, bh, 3); ctx.fill();
+      ctx.fillStyle = bColor; ctx.font = 'bold 8.5px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(d.avgB.toFixed(1), xB + BAR_W / 2, yTop - 3);
+      topmost = Math.min(topmost, yTop);
     }
 
-    // Delta label
+    // Δ% above tallest bar
     if (d.pct != null) {
       const sign = d.pct >= 0 ? '+' : '';
       ctx.fillStyle = d.pct >= 0 ? C.green : C.red;
-      ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText(sign+d.pct.toFixed(1)+'%', W - PAD.right + 30, yC + 4);
-    } else {
-      ctx.fillStyle = C.axis; ctx.font='9px system-ui'; ctx.textAlign='center';
-      ctx.fillText('s/par', W - PAD.right + 30, yC + 4);
+      ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+      const deltaY = Math.max(topmost - 14, PAD.top + 4);
+      ctx.fillText(sign + d.pct.toFixed(1) + '%', pairCX, deltaY);
     }
+
+    // X-axis labels: filial code + full nome, rotated -45°
+    ctx.save();
+    ctx.translate(pairCX, baseline + 8);
+    ctx.rotate(-Math.PI / 4);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = C.text;  ctx.font = 'bold 10px system-ui';
+    ctx.fillText(d.filial, 0, 0);
+    ctx.fillStyle = C.axis;  ctx.font = '9px system-ui';
+    ctx.fillText(d.nome, 0, 13);
+    ctx.restore();
   });
 }
 
@@ -2515,8 +2526,8 @@ function _compDesenharRanking(dados) {
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const W = Math.max(canvas.parentElement.clientWidth - 2, 200);
-  const ROW_H = 30, BAR_H = 14;
-  const PAD = { top: 38, right: 14, bottom: 10, left: 46 };
+  const ROW_H = 36, BAR_H = 14;
+  const PAD = { top: 38, right: 14, bottom: 10, left: 110 };
   const H = PAD.top + sorted.length * ROW_H + PAD.bottom;
   canvas.width = W * dpr; canvas.height = H * dpr;
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
@@ -2562,13 +2573,16 @@ function _compDesenharRanking(dados) {
     ctx.fillStyle = i%2===0 ? 'rgba(128,160,210,0.07)' : 'transparent';
     ctx.fillRect(0, rowY, W, ROW_H);
 
-    // Filial number + sigla
+    // Filial number + sigla + nome
     if (d.numero != null) {
-      ctx.fillStyle = C.axis; ctx.font='bold 8px system-ui'; ctx.textAlign='right';
-      ctx.fillText(String(d.numero).padStart(2,'0'), PAD.left - 22, yC + 3);
+      ctx.fillStyle = C.axis; ctx.font='bold 8px system-ui'; ctx.textAlign='left';
+      ctx.fillText(String(d.numero).padStart(2,'0'), 4, yC + 3);
     }
     ctx.fillStyle = C.text; ctx.font='bold 10px system-ui'; ctx.textAlign='right';
-    ctx.fillText(d.filial, PAD.left - 5, yC + 4);
+    ctx.fillText(d.filial, PAD.left - 5, yC - 2);
+    ctx.fillStyle = C.axis; ctx.font='8.5px system-ui'; ctx.textAlign='right';
+    const nmr = d.nome.length > 16 ? d.nome.slice(0, 15) + '…' : d.nome;
+    ctx.fillText(nmr, PAD.left - 5, yC + 11);
 
     // bar
     const bColor = d.pct >= 0 ? C.green : C.red;
@@ -2618,7 +2632,7 @@ function _compExportarPNG() {
   const PX = { t:0, r:52, b:0, l:52 };
   const HEADER_H = 110;
   const KPI_H = 76;
-  const CHART_PL = 92, CHART_PR = 68;
+  const CHART_PL = 160, CHART_PR = 68;
   const ROW_H = 36, BAR_H = 11, PAIR_GAP = 3;
   const LEGEND_H = 38;
   const n = dr.length;
@@ -2785,7 +2799,7 @@ function _compExportarPNG() {
     ctx.fillStyle=C.text; ctx.font=`bold 11.5px ${FONT}`; ctx.textAlign='right';
     ctx.fillText(d.filial, chartLeft-8, yA+BAR_H+1);
     ctx.fillStyle=C.text3; ctx.font=`9.5px ${FONT}`;
-    const nm = d.nome.length>11 ? d.nome.slice(0,10)+'…' : d.nome;
+    const nm = d.nome.length>20 ? d.nome.slice(0,19)+'…' : d.nome;
     ctx.fillText(nm, chartLeft-8, yB+BAR_H+1);
 
     // Bar A — Azul Escuro AGROQUIMA
@@ -2864,7 +2878,7 @@ function _compExportarPNG2026() {
   const PX = { t:0, r:52, b:0, l:52 };
   const HEADER_H = 110;
   const KPI_H    = 76;
-  const CHART_PL = 100, CHART_PR = 72;
+  const CHART_PL = 160, CHART_PR = 72;
   const ROW_H = 34, BAR_H = 16;
   const LEGEND_H = 44;
   const n = dr.length;
@@ -3032,7 +3046,7 @@ function _compExportarPNG2026() {
     ctx.fillStyle=C.text; ctx.font=`bold 11.5px ${FONT}`; ctx.textAlign='right';
     ctx.fillText(d.filial, chartLeft-8, yC+1);
     ctx.fillStyle=C.text3; ctx.font=`9px ${FONT}`;
-    const nm = d.nome.length>12 ? d.nome.slice(0,11)+'…' : d.nome;
+    const nm = d.nome.length>20 ? d.nome.slice(0,19)+'…' : d.nome;
     ctx.fillText(nm, chartLeft-8, yC+13);
 
     // barra anoB — azul royal (melhoria) ou azul aço (queda)
@@ -3176,8 +3190,8 @@ function _compExportarRanking() {
   const SCALE = 2;
   const EW = 920;
   const HEADER_H = 100;
-  const ROW_H = 34, BAR_H = 14;
-  const PAD = { l:72, r:56, t:HEADER_H+28, b:46 };
+  const ROW_H = 40, BAR_H = 14;
+  const PAD = { l:150, r:56, t:HEADER_H+28, b:46 };
   const n = sorted.length;
   const EH = PAD.t + n * ROW_H + PAD.b;
   const PL = p => ['','1ª','2ª','3ª','4ª','5ª','6ª'][p]||p+'ª';
@@ -3270,15 +3284,18 @@ function _compExportarRanking() {
     ctx.fillRect(0, rowY, EW, ROW_H);
 
     // Rank index + num
-    ctx.fillStyle = C.text3; ctx.font = `9px ${FONT}`; ctx.textAlign = 'right';
-    ctx.fillText(`${i+1}.`, PAD.l - 50, yC + 3);
+    ctx.fillStyle = C.text3; ctx.font = `9px ${FONT}`; ctx.textAlign = 'left';
+    ctx.fillText(`${i+1}.`, 6, yC + 3);
     if (d.numero != null) {
-      ctx.font = `bold 9px ${FONT}`;
-      ctx.fillText(String(d.numero).padStart(2,'0'), PAD.l - 30, yC + 3);
+      ctx.font = `bold 9px ${FONT}`; ctx.textAlign = 'left';
+      ctx.fillText(String(d.numero).padStart(2,'0'), 28, yC + 3);
     }
-    // Sigla
+    // Sigla + nome
     ctx.fillStyle = C.text; ctx.font = `bold 11px ${FONT}`; ctx.textAlign = 'right';
-    ctx.fillText(d.filial, PAD.l - 4, yC + 4);
+    ctx.fillText(d.filial, PAD.l - 4, yC - 3);
+    ctx.fillStyle = C.text3; ctx.font = `9px ${FONT}`; ctx.textAlign = 'right';
+    const nmrk = d.nome.length > 18 ? d.nome.slice(0, 17) + '…' : d.nome;
+    ctx.fillText(nmrk, PAD.l - 4, yC + 11);
 
     const bColor = d.pct >= 0 ? C.green : C.red;
     const x0 = d.pct >= 0 ? midX : xS(d.pct);
@@ -3449,7 +3466,7 @@ function _compExportarTabelaPNG() {
       let val='', color=C.text, bold=false;
       if (col.key==='numero')  { val=d.numero!=null?String(d.numero):'—'; color=C.text3; }
       else if (col.key==='filial')   { val=d.filial; bold=true; }
-      else if (col.key==='nome')     { val=d.nome.length>20?d.nome.slice(0,19)+'…':d.nome; }
+      else if (col.key==='nome')     { val=d.nome.length>22?d.nome.slice(0,21)+'…':d.nome; }
       else if (col.key==='delta')    { val=d.delta!=null?sg(d.delta)+d.delta:'—'; color=d.delta>0?C.greenDk:d.delta<0?C.redDk:C.text3; bold=true; }
       else if (col.key==='pct')      { val=d.pct!=null?sg(d.pct)+d.pct+'%':'—';   color=d.pct>0?C.greenDk:d.pct<0?C.redDk:C.text3; bold=true; }
       else if (col.key==='avgA'||col.key==='avgB') { val=d[col.key]!=null?String(d[col.key]):'—'; bold=true; }
@@ -3821,7 +3838,7 @@ ${detalheHTML}
       <button class="btn-topo" onclick="_compExportarPNG2026()" style="padding:5px 10px;font-size:11px;margin-left:2px;" title="Exportar para apresentação — KPIs comparativos no cabeçalho, gráfico somente com o ano mais recente em paleta azul">⬇ PNG Apresentação</button>
     </div>
   </div>
-  <div style="overflow-y:auto;overflow-x:hidden;">
+  <div style="overflow-x:auto;overflow-y:hidden;">
     <canvas id="comp-chart-h" style="display:block;"></canvas>
   </div>
 </div>
@@ -3834,7 +3851,7 @@ ${detalheHTML}
     </div>
     <button class="btn-topo primary" onclick="_compExportarRanking()" style="padding:5px 10px;font-size:11px;">⬇ PNG</button>
   </div>
-  <div style="overflow-y:auto;overflow-x:hidden;">
+  <div style="overflow-x:auto;overflow-y:hidden;">
     <canvas id="comp-chart-delta" style="display:block;"></canvas>
   </div>
 </div>
