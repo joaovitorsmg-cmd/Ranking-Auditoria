@@ -631,7 +631,8 @@ let COMP_ANO_A = null;          // ano referência
 let COMP_ANO_B = null;          // ano comparativo
 let COMP_POSICOES = new Set([1,2]); // posições ordinais selecionadas (1-indexed)
 let COMP_REGIONAL = '';         // filtro regional ('' = todos)
-let COMP_AUDITOR = '';          // filtro auditor ('' = todos)
+let COMP_AUDITOR  = '';         // filtro auditor ('' = todos)
+let COMP_REGIAO   = '';         // filtro região geográfica: '' | 'NORTE' | 'SUL'
 let COMP_FILIAIS_SEL = new Set(); // filiais selecionadas (vazio = todas)
 let COMP_SORT = { col:'numero', dir:1 };
 let COMP_CHART_SORT = 'numero'; // 'numero' | 'pct_desc' | 'pct_asc' | 'avgB_desc' | 'avgB_asc'
@@ -2339,7 +2340,8 @@ function _compCalcDados() {
   filiais.forEach(sig => {
     const info = BASE_FILIAIS[sig] || {};
     if (COMP_REGIONAL && (info.regional||'').toLowerCase() !== COMP_REGIONAL.toLowerCase()) return;
-    if (COMP_AUDITOR && (info.auditor||'').toLowerCase() !== COMP_AUDITOR.toLowerCase()) return;
+    if (COMP_AUDITOR  && (info.auditor||'').toLowerCase()  !== COMP_AUDITOR.toLowerCase())  return;
+    if (COMP_REGIAO   && (info.regiao||'').toUpperCase()   !== COMP_REGIAO.toUpperCase())   return;
     if (COMP_FILIAIS_SEL.size && !COMP_FILIAIS_SEL.has(sig)) return;
     const avgA = _compOrdinalMedia(sig, anoA, posicoes);
     const avgB = _compOrdinalMedia(sig, anoB, posicoes);
@@ -2983,8 +2985,9 @@ function _compExportarPNG2026() {
   const filLbl = COMP_FILIAIS_SEL.size ? [...COMP_FILIAIS_SEL].sort().join(', ') : `${n} filial(is)`;
   ctx.fillStyle = 'rgba(255,255,255,0.80)'; ctx.font = `13px ${FONT}`;
   ctx.fillText(`Posição: ${posLbl}  ·  Anos: ${anoA} vs ${anoB}  ·  Regional: ${regLbl}  ·  Auditor: ${audLbl}  ·  Filiais: ${filLbl}`, textX, 70);
+  const regiaoLbl2026 = COMP_REGIAO ? `  ·  Região: ${COMP_REGIAO}` : '';
   ctx.font = `12px ${FONT}`; ctx.fillStyle = 'rgba(255,255,255,0.50)';
-  ctx.fillText(`Gráfico: notas de ${anoB} (referência: ${anoA})  ·  Ordenado por: ${sortLbl}  ·  Em andamento excluídos`, textX, 92);
+  ctx.fillText(`Gráfico: notas de ${anoB} (referência: ${anoA})  ·  Ordenado por: ${sortLbl}${regiaoLbl2026}  ·  Em andamento excluídos`, textX, 92);
 
   // KPI ROW — acento azul royal (sem verde/vermelho nas barras laterais)
   const comAmbos = dr.filter(d=>d.avgA!=null&&d.avgB!=null);
@@ -3130,7 +3133,8 @@ function _compExportarPNG2026() {
 
   // DOWNLOAD
   const link = document.createElement('a');
-  link.download = `comparativo-${anoB}-apresentacao-${posicoes.join('')}.png`;
+  const regiaoSuffix = COMP_REGIAO ? `-${COMP_REGIAO.toLowerCase()}` : '';
+  link.download = `comparativo-${anoB}-apresentacao${regiaoSuffix}-${posicoes.join('')}.png`;
   link.href = cv.toDataURL('image/png');
   link.click();
 }
@@ -3570,7 +3574,9 @@ function renderAbaComparativo() {
   if (!COMP_ANO_A) COMP_ANO_A = anos.length >= 2 ? anos[anos.length-2] : anos[0];
   if (!COMP_ANO_B) COMP_ANO_B = anos[anos.length-1];
 
-  const regionais = [...new Set(Object.values(BASE_FILIAIS).map(f=>f.regional).filter(Boolean))].sort();
+  const _REGIONAIS_OCULTAS = new Set(['ANNAPAULLA GARCIA','EVANDRO MACEDO','HENISLEY SABINO']);
+  const regionais = [...new Set(Object.values(BASE_FILIAIS).map(f=>f.regional).filter(Boolean))]
+    .filter(r=>!_REGIONAIS_OCULTAS.has(r.toUpperCase())).sort();
   const auditores = [...new Set(Object.values(BASE_FILIAIS).map(f=>f.auditor).filter(Boolean))].sort();
   const filiaisDisp = _compFiliaisDisponiveis();
 
@@ -3628,6 +3634,17 @@ function renderAbaComparativo() {
           ${auditores.map(a=>`<option value="${a}" ${COMP_AUDITOR===a?'selected':''}>${a}</option>`).join('')}
         </select>
       </div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        ${lbl10('Região')}
+        <div style="display:flex;gap:4px;">
+          ${['NORTE','SUL'].map(rg=>`<button
+            onclick="_compSetRegiao('${rg}')"
+            style="padding:4px 11px;font-size:12px;font-weight:600;border-radius:5px;cursor:pointer;
+              border:1px solid ${COMP_REGIAO===rg?'var(--brand)':'var(--border)'};
+              background:${COMP_REGIAO===rg?'var(--brand-lt)':'var(--bg3)'};
+              color:${COMP_REGIAO===rg?'var(--brand-dk)':'var(--text2)'};">${rg}</button>`).join('')}
+        </div>
+      </div>
       <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
         ${COMP_ARQUIVO_INFO ? `<div style="font-size:10px;color:var(--text3);text-align:right;line-height:1.4;max-width:200px;">
           <span style="font-weight:600;color:var(--text2);">${COMP_ARQUIVO_INFO.nome.length>30?COMP_ARQUIVO_INFO.nome.slice(0,28)+'…':COMP_ARQUIVO_INFO.nome}</span>
@@ -3683,6 +3700,18 @@ function _compSetFiltro(key, val) {
   _compRenderCorpo();
 }
 
+function _compSetRegiao(val) {
+  COMP_REGIAO = COMP_REGIAO === val ? '' : val;
+  renderAbaComparativo();
+}
+
+function _compExportarPNG2026Regiao(regiao) {
+  const prev = COMP_REGIAO;
+  COMP_REGIAO = regiao;
+  _compExportarPNG2026();
+  COMP_REGIAO = prev;
+}
+
 function _compToggleFilial(sig) {
   if (COMP_FILIAIS_SEL.size === 0) {
     // all selected → deselect one
@@ -3715,7 +3744,7 @@ function _compAbrirCard(tipo) {
 }
 
 function _compLimparFiltros() {
-  COMP_REGIONAL=''; COMP_AUDITOR=''; COMP_FILIAIS_SEL=new Set(); COMP_POSICOES=new Set([1,2]);
+  COMP_REGIONAL=''; COMP_AUDITOR=''; COMP_REGIAO=''; COMP_FILIAIS_SEL=new Set(); COMP_POSICOES=new Set([1,2]);
   COMP_CARD_ABERTO=null;
   const a=_compAnosDisponiveis();
   COMP_ANO_A = a.length>=2 ? a[a.length-2] : a[0];
@@ -3872,6 +3901,8 @@ ${detalheHTML}
       ${csBtn('avgB_asc','↑ Menor nota '+anoB)}
       <button class="btn-topo primary" onclick="_compExportarPNG()" style="padding:5px 10px;font-size:11px;margin-left:4px;" title="Exportar gráfico comparativo completo (barras de ambos os anos)">⬇ PNG</button>
       <button class="btn-topo" onclick="_compExportarPNG2026()" style="padding:5px 10px;font-size:11px;margin-left:2px;" title="Exportar para apresentação — KPIs comparativos no cabeçalho, gráfico somente com o ano mais recente em paleta azul">⬇ PNG Apresentação</button>
+      <button class="btn-topo" onclick="_compExportarPNG2026Regiao('NORTE')" style="padding:5px 10px;font-size:11px;margin-left:2px;border-color:var(--brand);" title="Exportar PNG Apresentação somente com filiais da Região Norte">⬇ PNG Norte</button>
+      <button class="btn-topo" onclick="_compExportarPNG2026Regiao('SUL')" style="padding:5px 10px;font-size:11px;margin-left:2px;border-color:var(--brand);" title="Exportar PNG Apresentação somente com filiais da Região Sul">⬇ PNG Sul</button>
     </div>
   </div>
   <div style="overflow-x:auto;overflow-y:hidden;">
