@@ -1520,15 +1520,15 @@ function renderAbaPeriodo() {
   let PER_SEL='';
   window._perSel='';
   document.getElementById('ptags').innerHTML =
-    `<div class="ptag ativo" onclick="selPeriodo('')">Todos</div>`+
-    periodos.map(p=>`<div class="ptag" onclick="selPeriodo('${p}')">${p}</div>`).join('');
+    `<div class="ptag ativo" onclick="selPeriodo('',this)">Todos</div>`+
+    periodos.map(p=>`<div class="ptag" onclick="selPeriodo('${p}',this)">${p}</div>`).join('');
   renderTabelaPeriodo();
 }
 
-function selPeriodo(p){
+function selPeriodo(p,el){
   window._perSel=p;
   document.querySelectorAll('#ptags .ptag').forEach(t=>t.classList.remove('ativo'));
-  event.target.classList.add('ativo');
+  (el||event.target).classList.add('ativo');
   renderTabelaPeriodo();
 }
 
@@ -1918,9 +1918,11 @@ function renderAbaCronograma() {
   const totalAuditoriasAno=dados.porFilial.reduce((s,f)=>s+f.qtd,0);
   const progressoGeral=Math.round(realizadasGeral/Math.max(metaGeral,1)*100);
   const emAndamento=_cronoEmAndamento();
+  const _tabCrono=document.getElementById('aba-cronograma');
+  if(_tabCrono) _tabCrono.innerHTML=emAndamento.length?`🗓 Cronograma <span style="background:var(--amber-dk);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:9px;vertical-align:middle;">${emAndamento.length}</span>`:'🗓 Cronograma';
 
   c.innerHTML = `
-    <div class="info-bar">🗓 <strong>Cronograma & Progresso das Auditorias</strong> — acompanhamento <em>independente do Ranking</em>, baseado somente na planilha importada (Filial, Data/Dt Início, Status e Nota). Meta: <strong>${CRONO_META} auditorias/ano por filial</strong>, exceto as <strong>filiais de confiança da diretoria</strong> (Cristalina, Jataí, Uberlândia e Cuiabá), com meta reduzida de <strong>${CRONO_META_CONFIANCA} auditorias/ano</strong>. As filiais <strong>FAP, GRA e FAG</strong> não são auditadas e ficam fora de qualquer cálculo desta aba. O progresso é medido pelo <strong>ritmo esperado até hoje</strong> (${Math.round(dados.fracaoAno*100)}% do ano ${anoSel} decorrido) — a meta cheia só se completa em dezembro. Apenas auditorias com <strong>Status = Finalizada</strong> contam; as demais aparecem como alerta no fim da página.</div>
+    <div class="info-bar">🗓 <strong>Cronograma & Progresso</strong> — Meta: <strong>${CRONO_META} aud./ano</strong> por filial; filiais de confiança (Cristalina, Jataí, Uberlândia e Cuiabá): <strong>${CRONO_META_CONFIANCA}/ano</strong>; FAP, GRA e FAG excluídas. Apenas <strong>Status = Finalizada</strong> conta; auditorias em andamento aparecem como alerta abaixo.</div>
 
     <input type="file" id="inp-cronograma" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarCronogramaArquivo(this)">
 
@@ -4173,7 +4175,7 @@ function abrirModalFaturamento() {
     return `<div class="fat-row" style="flex-direction:column;align-items:stretch;gap:6px;">
       <div style="display:flex;align-items:center;gap:10px;">
         <div class="fat-row-nome">${s}<br><span style="font-size:11px;color:var(--text3)">${nome}</span></div>
-        <input type="number" id="fat-${s.replace(/\W/g,'_')}" value="${fat}" placeholder="R$ 0,00" step="0.01" min="0">
+        <input type="number" id="fat-${s.replace(/\W/g,'_')}" data-sigla="${s}" value="${fat}" placeholder="R$ 0,00" step="0.01" min="0">
       </div>
       ${origem}
     </div>`;
@@ -4183,13 +4185,10 @@ function abrirModalFaturamento() {
 
 function salvarFaturamentos() {
   document.querySelectorAll('#fat-rows input').forEach(inp=>{
-    const s=inp.id.replace('fat-','').replace(/_/g,'');
-    // recuperar sigla original
-  });
-  const siglas=[...new Set(REGISTROS.map(r=>r.filial.toUpperCase()))];
-  Object.keys(BASE_FILIAIS).forEach(s=>{
-    const inp=document.getElementById('fat-'+s.replace(/\W/g,'_'));
-    if(inp&&inp.value){ const v=parseFloat(inp.value); if(v>0) FATURAMENTOS[s]=v; }
+    const sigla=inp.dataset.sigla||inp.id.replace('fat-','');
+    if(!sigla||!inp.value) return;
+    const v=parseFloat(inp.value);
+    if(v>0) FATURAMENTOS[sigla]=v;
   });
   fecharModal('modal-fat');
   processarERenderizar();
