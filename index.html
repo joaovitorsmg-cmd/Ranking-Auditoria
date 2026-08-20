@@ -1055,7 +1055,9 @@ function processarERenderizar() {
     arq.dados.forEach(d => {
       if (!d.filial) return;
       const periodo = d.periodo || '';
-      const chave = (d.filial+'|'+periodo).toUpperCase();
+      // Usa a data exata (dia) do registro para diferenciar auditorias distintas no mesmo mês
+      const diaAud = (d.dataReg||'').split(' ')[0] || '';
+      const chave = (d.filial+'|'+periodo+(diaAud?'|'+diaAud:'')).toUpperCase();
       if (!map[chave]) map[chave] = _regVazio(d.filial, periodo);
       const r = map[chave];
       r.temPed=true;
@@ -1071,7 +1073,9 @@ function processarERenderizar() {
       const filial = d.filial||'';
       const periodo = d.mes||d.periodo||'';
       if (!filial) return;
-      const chave = (filial+'|'+periodo).toUpperCase();
+      // Usa a data exata (dia) da auditoria para diferenciar auditorias distintas no mesmo mês
+      const diaAud = (d.dataAuditoria||'').split(' ')[0] || (d.dataReg||'').split(' ')[0] || '';
+      const chave = (filial+'|'+periodo+(diaAud?'|'+diaAud:'')).toUpperCase();
       if (!map[chave]) map[chave] = _regVazio(filial, periodo);
       const r = map[chave];
       r.temVenc=true;
