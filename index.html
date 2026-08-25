@@ -236,6 +236,7 @@ body{font-family:var(--fonte);background:var(--bg);color:var(--text);font-size:1
 .btn-modal{padding:9px 18px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;}
 .btn-modal.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));border:none;color:#fff;}
 .btn-modal.sec{background:var(--bg);border:1px solid var(--border);color:var(--text);}
+.btn-modal.danger{background:var(--red-dk,#c0392b);border:none;color:#fff;}
 
 .metod{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:20px;}
 .metod strong{color:var(--text);}
@@ -533,6 +534,157 @@ body,#topo,.kpi,.chart-card,.rank-wrap,.modal-box,.arq-card,.drop-zone,.btn-topo
   </div>
 </div>
 
+<!-- MODAL ENTRADA MANUAL (acesso via gatilho oculto na aba Por Período) -->
+<div class="modal-overlay hidden" id="modal-manual-reg">
+  <div class="modal-box" style="max-width:730px;">
+    <div class="modal-title" id="modal-manual-titulo">✎ Entrada Manual</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px;">
+      <div>
+        <div style="margin-bottom:12px;">
+          <label class="modal-sub" style="margin-bottom:4px;display:block;font-size:12px;color:var(--text2);">Filial</label>
+          <select id="mf-filial" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;" onchange="_manualScorePreview()">
+            <option value="">Selecione a filial...</option>
+          </select>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label class="modal-sub" style="margin-bottom:4px;display:block;font-size:12px;color:var(--text2);">Período (MM/AAAA)</label>
+          <input id="mf-periodo" type="text" placeholder="08/2026" maxlength="7"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"
+            oninput="_manualScorePreview()">
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;margin-bottom:10px;">
+            <input type="checkbox" id="mf-tem-ped" onchange="_manualTogglePed();_manualScorePreview()"> Pedido / Semente / Canhoto
+          </label>
+          <div id="mf-ped-fields" style="display:none;">
+            <div style="margin-bottom:8px;">
+              <label style="display:block;margin-bottom:4px;font-size:11px;color:var(--text2);">Semente</label>
+              <select id="mf-semente" style="width:100%;padding:7px 10px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;" onchange="_manualScorePreview()">
+                <option value="0">Sem pendência de semente → 40 pts</option>
+                <option value="1">Com pendência de semente → 0 pts</option>
+              </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div>
+                <label style="display:block;margin-bottom:4px;font-size:11px;color:var(--text2);">Pedido Conferido (R$)</label>
+                <input id="mf-pedconf" type="number" min="0" step="0.01" placeholder="0.00"
+                  style="width:100%;box-sizing:border-box;padding:7px 10px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;"
+                  oninput="_manualScorePreview()">
+              </div>
+              <div>
+                <label style="display:block;margin-bottom:4px;font-size:11px;color:var(--text2);">% Pedido Conferido</label>
+                <input id="mf-pctped" type="number" min="0" max="100" step="0.1" placeholder="0.0"
+                  style="width:100%;box-sizing:border-box;padding:7px 10px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;"
+                  oninput="_manualScorePreview()">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>
+                <label style="display:block;margin-bottom:4px;font-size:11px;color:var(--text2);">Canhoto Conferido (R$)</label>
+                <input id="mf-canconf" type="number" min="0" step="0.01" placeholder="0.00"
+                  style="width:100%;box-sizing:border-box;padding:7px 10px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;"
+                  oninput="_manualScorePreview()">
+              </div>
+              <div>
+                <label style="display:block;margin-bottom:4px;font-size:11px;color:var(--text2);">% Canhoto Conferido</label>
+                <input id="mf-pctcan" type="number" min="0" max="100" step="0.1" placeholder="0.0"
+                  style="width:100%;box-sizing:border-box;padding:7px 10px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;"
+                  oninput="_manualScorePreview()">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block;margin-bottom:4px;font-size:12px;color:var(--text2);">Data da Auditoria (DD/MM/AAAA) <span style="color:var(--text3);">opcional</span></label>
+          <input id="mf-data" type="text" placeholder="15/08/2026" maxlength="10"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
+        </div>
+      </div>
+      <div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;margin-bottom:10px;">
+            <input type="checkbox" id="mf-tem-venc" onchange="_manualToggleVenc();_manualScorePreview()"> Vencidos
+          </label>
+          <div id="mf-venc-fields" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>
+                <label style="display:block;margin-bottom:4px;font-size:11px;color:var(--text2);">Qtd. Vencidos</label>
+                <input id="mf-totalvenc" type="number" min="0" step="1" placeholder="0"
+                  style="width:100%;box-sizing:border-box;padding:7px 10px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;"
+                  oninput="_manualScorePreview()">
+              </div>
+              <div>
+                <label style="display:block;margin-bottom:4px;font-size:11px;color:var(--text2);">Valor Vencidos (R$)</label>
+                <input id="mf-valorvenc" type="number" min="0" step="0.01" placeholder="0.00"
+                  style="width:100%;box-sizing:border-box;padding:7px 10px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;"
+                  oninput="_manualScorePreview()">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block;margin-bottom:4px;font-size:12px;color:var(--text2);">Faturamento do Período (R$) <span style="color:var(--text3);">para calcular % venc/fat</span></label>
+          <input id="mf-fat" type="number" min="0" step="0.01" placeholder="0.00"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"
+            oninput="_manualScorePreview()">
+        </div>
+        <div id="mf-score-preview" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;display:none;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Preview do Score</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;text-align:center;">
+            <div><div style="font-size:10px;color:var(--text3);">🔴 Semente</div><div id="mf-pr-sem" style="font-weight:800;font-size:15px;"></div></div>
+            <div><div style="font-size:10px;color:var(--text3);">🔵 Pedido</div><div id="mf-pr-ped" style="font-weight:800;font-size:15px;"></div></div>
+            <div><div style="font-size:10px;color:var(--text3);">🟡 Vencidos</div><div id="mf-pr-venc" style="font-weight:800;font-size:15px;"></div></div>
+            <div><div style="font-size:10px;color:var(--text3);">🟢 Canhoto</div><div id="mf-pr-can" style="font-weight:800;font-size:15px;"></div></div>
+          </div>
+          <div style="text-align:center;border-top:1px solid var(--border2);padding-top:8px;">
+            <div style="font-size:10px;color:var(--text3);">Base Score (bônus calculado após salvar)</div>
+            <div id="mf-pr-base" style="font-weight:800;font-size:22px;color:var(--brand-dk);"></div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;display:flex;align-items:flex-start;gap:8px;">
+          <input type="checkbox" id="mf-substituir" style="margin-top:2px;flex-shrink:0;">
+          <label for="mf-substituir" style="font-size:11.5px;cursor:pointer;color:var(--text2);">Substituir dados já importados para esta filial/período (remove os arquivos importados para este par antes de adicionar)</label>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:16px;flex-wrap:wrap;align-items:center;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="mf-btn-excluir" class="btn-modal danger" style="display:none;" onclick="_deletarManualAtual()">🗑 Excluir</button>
+        <button class="btn-modal sec" style="font-size:11px;padding:7px 12px;" onclick="_abrirAuditManual()">📋 Histórico manual (<span id="mf-count-hist">0</span>)</button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-modal sec" onclick="fecharModal('modal-manual-reg')">Cancelar</button>
+        <button class="btn-modal primary" onclick="salvarManual()">✔ Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL HISTÓRICO MANUAL (acessado pelo modal acima) -->
+<div class="modal-overlay hidden" id="modal-audit-manual">
+  <div class="modal-box" style="max-width:820px;">
+    <div class="modal-title">📋 Registros Manuais</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Entradas inseridas manualmente. Apenas visível nesta tela.</div>
+    <div style="overflow-x:auto;max-height:440px;overflow-y:auto;">
+      <table class="rank-table">
+        <thead><tr>
+          <th>Filial</th><th>Período</th><th>Tipo</th>
+          <th style="text-align:center;">Semente</th><th style="text-align:center;">Pedido</th>
+          <th style="text-align:center;">Vencidos</th><th style="text-align:center;">Canhoto</th>
+          <th style="text-align:center;">Base</th>
+          <th style="font-size:10px;">Substitui?</th>
+          <th style="font-size:10px;color:var(--text3);">Criado</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="audit-manual-body"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+      <button class="btn-modal sec" onclick="fecharModal('modal-audit-manual')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- CERTIFICADO (oculto, usado para render) -->
 <div style="position:fixed;left:-9999px;top:0;"><div id="cert-render"></div></div>
 
@@ -598,7 +750,8 @@ let AUDITORIA_NOTAS_INFO = null; // { arquivo, geradoEm, periodoIniDisplay, peri
 let FAT_ACUM = {};        // { sigla: {valor, chaves:Set, periodoInicio, periodoFim, importadoEm, linhas} }
 let OBSERVACOES = {};     // { chave: texto }
 let REGISTROS = [];       // todos os registros período a período (mesclados)
-let CONFIG = { dataPremio:'', ano: new Date().getFullYear(), tetoBonus: 5, totalRodadas: 4, rodadasConfianca: 2 };
+let CONFIG = { dataPremio:'', ano: new Date().getFullYear(), tetoBonus: 5, totalRodadas: 4, rodadasConfianca: 2, registrosManuais: [] };
+let _mTrigCnt=0, _mTrigTmr=null, _manualEditId=null;
 function _rodadasFilial(sigla) { return _ehFilialConfianca(sigla) ? (CONFIG.rodadasConfianca||2) : (CONFIG.totalRodadas||4); }
 let ABA_ATUAL = 'anual';
 let chartEvol = null;
@@ -1091,6 +1244,26 @@ function processarERenderizar() {
     });
   });
 
+  // Injetar registros manuais
+  (CONFIG.registrosManuais||[]).forEach(m => {
+    if(!m.filial||!m.periodo) return;
+    const filial=m.filial.toUpperCase();
+    if(m._substituir){
+      Object.keys(map).forEach(k=>{
+        const parts=k.split('|');
+        if(parts[0]===filial && parts[1]===m.periodo) delete map[k];
+      });
+    }
+    const chave=(filial+'|'+m.periodo+'|__M__'+(m._id||'')).toUpperCase();
+    const r=_regVazio(filial, m.periodo);
+    r._manual=true; r._manualId=m._id;
+    if(m.temPed){r.temPed=true;r.semPend=+m.semPend||0;r.pedConf=+m.pedConf||0;r.pctPed=+m.pctPed||0;r.canConf=+m.canConf||0;r.pctCan=+m.pctCan||0;}
+    if(m.temVenc){r.temVenc=true;r.totalVencidos=+m.totalVencidos||0;r.valorVencidos=+m.valorVencidos||0;}
+    if(+m.faturamento>0) r.faturamento=+m.faturamento;
+    if(m.dataAuditoria) r.dataAuditoria=m.dataAuditoria;
+    map[chave]=r;
+  });
+
   // Aplicar faturamento manual + calcular scores base
   Object.values(map).forEach(r => {
     const _fatP = (FAT_HISTORICO[r.filial.toUpperCase()]||{})[r.periodo];
@@ -1485,7 +1658,7 @@ function renderAbaPeriodo() {
   const c = document.getElementById('conteudo-abas');
   const periodos=[...new Set(REGISTROS.map(r=>r.periodo).filter(Boolean))].sort();
   c.innerHTML = `
-    <div class="info-bar">📅 <strong>Ranking por Período</strong> — snapshot de cada auditoria realizada. Use para acompanhar mês a mês. O ranking oficial da premiação é o <strong>Ranking Anual</strong>. <span style="font-size:11px;cursor:pointer;color:var(--brand-dk);text-decoration:underline;" onclick="mudarAba('guia')">Ver fórmula de pontuação →</span></div>
+    <div class="info-bar">📅 <strong>Ranking por Período</strong> — snapshot de cada auditoria realizada. Use para acompanhar mês a mês. O ranking oficial da premiação é o <strong>Ranking Anual</strong>. <span style="font-size:11px;cursor:pointer;color:var(--brand-dk);text-decoration:underline;" onclick="mudarAba('guia')">Ver fórmula de pontuação →</span><span id="spot-manual" onclick="_manualTrigger()" style="display:inline-block;width:6px;height:6px;margin-left:6px;cursor:default;user-select:none;" title=""></span></div>
     <div class="periodo-tags" id="ptags"></div>
     <div class="filtros-bar">
       <input class="busca" id="busca-per" placeholder="Buscar filial..." oninput="renderTabelaPeriodo()">
@@ -1568,7 +1741,7 @@ function renderTabelaPeriodo() {
       <td style="text-align:right;${r.valorVencidos>0?'color:var(--red-dk)':'color:var(--text3)'}">${r.temVenc?fmt(r.valorVencidos):'—'}</td>
       <td style="text-align:right;${r.pctVencFat!=null?(r.pctVencFat<=2?'color:var(--green-dk)':r.pctVencFat<=5?'color:var(--amber-dk)':'color:var(--red-dk)'):'color:var(--text3)'}" title="${r.faturamento>0?'Faturamento do período: '+fmt(r.faturamento):''}">${r.pctVencFat!=null?r.pctVencFat.toFixed(2)+'%':(r.temVenc&&!r.faturamento?'<span style="font-size:10px;color:var(--amber-dk);" title="Carregue a base de faturamento via 💰 Faturamento no cabeçalho">sem fat.</span>':'—')}</td>
       <td><input class="obs-input" value="${(r.obs||'').replace(/"/g,'&quot;')}" placeholder="—" onchange="salvarObs('${chaveObs}',this.value)"></td>
-      <td style="text-align:center;">${dados}</td>
+      <td style="text-align:center;">${dados}${r._manual?`<span onclick="abrirModalManual('${r._manualId}')" title="Entrada manual — clique para editar" style="margin-left:4px;font-size:10px;color:var(--text3);cursor:pointer;opacity:0.6;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✎</span>`:''}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="15" style="text-align:center;padding:40px;color:var(--text3)">Nenhum registro.</td></tr>`;
 }
@@ -5191,6 +5364,188 @@ window.addEventListener('DOMContentLoaded', ()=>{
       painel.classList.remove('aberto');
     }
   });
+
+// ============================================================
+// ENTRADA MANUAL (gatilho oculto: 5 cliques no ponto invisível da aba Por Período)
+// ============================================================
+function _manualTrigger(){
+  clearTimeout(_mTrigTmr);
+  _mTrigCnt++;
+  if(_mTrigCnt>=5){ _mTrigCnt=0; abrirModalManual(null); return; }
+  _mTrigTmr=setTimeout(()=>{ _mTrigCnt=0; },2500);
+}
+
+function abrirModalManual(id){
+  _manualEditId=id||null;
+  const m=id?(CONFIG.registrosManuais||[]).find(x=>x._id===id):null;
+
+  // Populate filial select
+  const sel=document.getElementById('mf-filial');
+  sel.innerHTML='<option value="">Selecione a filial...</option>'+
+    Object.entries(BASE_FILIAIS).sort((a,b)=>a[1].loja.localeCompare(b[1].loja,'pt-BR')).map(([s,f])=>
+      `<option value="${s}">${s} — ${f.loja}</option>`).join('');
+
+  // Populate form
+  document.getElementById('modal-manual-titulo').textContent = m?'✎ Editar Entrada Manual':'✎ Nova Entrada Manual';
+  document.getElementById('mf-filial').value      = m?m.filial:'';
+  document.getElementById('mf-periodo').value     = m?m.periodo:'';
+  document.getElementById('mf-tem-ped').checked   = !!(m&&m.temPed);
+  document.getElementById('mf-semente').value     = (m&&m.semPend>0)?'1':'0';
+  document.getElementById('mf-pedconf').value     = m?m.pedConf||'':'';
+  document.getElementById('mf-pctped').value      = m?m.pctPed||'':'';
+  document.getElementById('mf-canconf').value     = m?m.canConf||'':'';
+  document.getElementById('mf-pctcan').value      = m?m.pctCan||'':'';
+  document.getElementById('mf-tem-venc').checked  = !!(m&&m.temVenc);
+  document.getElementById('mf-totalvenc').value   = m?m.totalVencidos||'':'';
+  document.getElementById('mf-valorvenc').value   = m?m.valorVencidos||'':'';
+  document.getElementById('mf-fat').value         = m?m.faturamento||'':'';
+  document.getElementById('mf-data').value        = m?m.dataAuditoria||'':'';
+  document.getElementById('mf-substituir').checked= !!(m&&m._substituir);
+
+  _manualTogglePed();
+  _manualToggleVenc();
+  _manualScorePreview();
+
+  document.getElementById('mf-btn-excluir').style.display=m?'':'none';
+  const cnt=(CONFIG.registrosManuais||[]).length;
+  document.getElementById('mf-count-hist').textContent=cnt;
+
+  document.getElementById('modal-manual-reg').classList.remove('hidden');
+}
+
+function _manualTogglePed(){
+  const on=document.getElementById('mf-tem-ped').checked;
+  document.getElementById('mf-ped-fields').style.display=on?'block':'none';
+}
+function _manualToggleVenc(){
+  const on=document.getElementById('mf-tem-venc').checked;
+  document.getElementById('mf-venc-fields').style.display=on?'block':'none';
+}
+
+function _manualScorePreview(){
+  const hasPed=document.getElementById('mf-tem-ped').checked;
+  const hasVenc=document.getElementById('mf-tem-venc').checked;
+  const prev=document.getElementById('mf-score-preview');
+  if(!hasPed&&!hasVenc){ prev.style.display='none'; return; }
+  prev.style.display='block';
+  const r={
+    temPed:hasPed,
+    semPend:document.getElementById('mf-semente').value==='1'?1:0,
+    pedConf:parseFloat(document.getElementById('mf-pedconf').value)||0,
+    pctPed:parseFloat(document.getElementById('mf-pctped').value)||0,
+    canConf:parseFloat(document.getElementById('mf-canconf').value)||0,
+    pctCan:parseFloat(document.getElementById('mf-pctcan').value)||0,
+    temVenc:hasVenc,
+    totalVencidos:parseInt(document.getElementById('mf-totalvenc').value)||0,
+    valorVencidos:parseFloat(document.getElementById('mf-valorvenc').value)||0,
+    faturamento:parseFloat(document.getElementById('mf-fat').value)||0,
+  };
+  const sc=calcScoreBase(r);
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  set('mf-pr-sem', hasPed?(sc.sSem>0?'+'+sc.sSem:'0'):'—');
+  set('mf-pr-ped', hasPed?(sc.sPed>0?'+'+sc.sPed.toFixed(1):'0'):'—');
+  set('mf-pr-venc', '+'+sc.sVenc.toFixed(1));
+  set('mf-pr-can', hasPed?(sc.sCan>0?'+'+sc.sCan.toFixed(1):'0'):'—');
+  set('mf-pr-base', sc.base.toFixed(1));
+}
+
+function salvarManual(){
+  const filial=(document.getElementById('mf-filial').value||'').toUpperCase();
+  const periodo=document.getElementById('mf-periodo').value.trim();
+  if(!filial){ alert('Selecione a filial.'); return; }
+  if(!/^\d{2}\/\d{4}$/.test(periodo)){ alert('Período inválido. Use o formato MM/AAAA (ex: 08/2026).'); return; }
+  const hasPed=document.getElementById('mf-tem-ped').checked;
+  const hasVenc=document.getElementById('mf-tem-venc').checked;
+  if(!hasPed&&!hasVenc){ alert('Marque pelo menos um tipo de dado: Pedido/Semente/Canhoto ou Vencidos.'); return; }
+
+  if(!CONFIG.registrosManuais) CONFIG.registrosManuais=[];
+  const agora=new Date().toLocaleString('pt-BR');
+  const id=_manualEditId||('m'+Date.now().toString(36));
+  const existente=_manualEditId?(CONFIG.registrosManuais.find(x=>x._id===id)||{}):null;
+
+  const novo={
+    _id:id,
+    _criadoEm: existente&&existente._criadoEm ? existente._criadoEm : agora,
+    _editadoEm: agora,
+    _substituir: document.getElementById('mf-substituir').checked,
+    filial,
+    periodo,
+    temPed:hasPed,
+    semPend:document.getElementById('mf-semente').value==='1'?1:0,
+    pedConf:parseFloat(document.getElementById('mf-pedconf').value)||0,
+    pctPed:parseFloat(document.getElementById('mf-pctped').value)||0,
+    canConf:parseFloat(document.getElementById('mf-canconf').value)||0,
+    pctCan:parseFloat(document.getElementById('mf-pctcan').value)||0,
+    temVenc:hasVenc,
+    totalVencidos:parseInt(document.getElementById('mf-totalvenc').value)||0,
+    valorVencidos:parseFloat(document.getElementById('mf-valorvenc').value)||0,
+    faturamento:parseFloat(document.getElementById('mf-fat').value)||0,
+    dataAuditoria:document.getElementById('mf-data').value.trim(),
+  };
+
+  if(_manualEditId){
+    const idx=CONFIG.registrosManuais.findIndex(x=>x._id===id);
+    if(idx>=0) CONFIG.registrosManuais[idx]=novo; else CONFIG.registrosManuais.push(novo);
+  } else {
+    CONFIG.registrosManuais.push(novo);
+  }
+
+  fecharModal('modal-manual-reg');
+  processarERenderizar();
+  if(getBinId()&&getMasterKey()) syncPush();
+}
+
+function _deletarManualAtual(){
+  if(!_manualEditId) return;
+  if(!confirm('Excluir esta entrada manual? A ação não pode ser desfeita.')) return;
+  CONFIG.registrosManuais=(CONFIG.registrosManuais||[]).filter(x=>x._id!==_manualEditId);
+  fecharModal('modal-manual-reg');
+  processarERenderizar();
+  if(getBinId()&&getMasterKey()) syncPush();
+}
+
+function _abrirAuditManual(){
+  const lista=(CONFIG.registrosManuais||[]);
+  const body=document.getElementById('audit-manual-body');
+  if(!lista.length){
+    body.innerHTML='<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text3)">Nenhuma entrada manual registrada ainda.</td></tr>';
+  } else {
+    body.innerHTML=lista.map(m=>{
+      const sc=calcScoreBase({
+        temPed:m.temPed,semPend:+m.semPend||0,pedConf:+m.pedConf||0,pctPed:+m.pctPed||0,
+        canConf:+m.canConf||0,pctCan:+m.pctCan||0,
+        temVenc:m.temVenc,totalVencidos:+m.totalVencidos||0,valorVencidos:+m.valorVencidos||0,
+        faturamento:+m.faturamento||0,
+      });
+      const tipo=(m.temPed&&m.temVenc)?'Completo':m.temPed?'Ped/Can':'Vencidos';
+      return `<tr>
+        <td><b>${m.filial}</b><br><span style="font-size:10px;color:var(--text3)">${BASE_FILIAIS[m.filial]?.loja||''}</span></td>
+        <td>${m.periodo}</td>
+        <td><span style="font-size:10px;">${tipo}</span></td>
+        <td style="text-align:center;">${m.temPed?(m.semPend>0?'✗ 0':'✔ 40'):'—'}</td>
+        <td style="text-align:center;">${m.temPed?sc.sPed.toFixed(1):'—'}</td>
+        <td style="text-align:center;">${sc.sVenc.toFixed(1)}</td>
+        <td style="text-align:center;">${m.temPed?sc.sCan.toFixed(1):'—'}</td>
+        <td style="text-align:center;font-weight:700;">${sc.base.toFixed(1)}</td>
+        <td style="text-align:center;font-size:10px;">${m._substituir?'⚠ Sim':'Não'}</td>
+        <td style="font-size:10px;color:var(--text3);white-space:nowrap;">${m._criadoEm||'—'}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn-topo" style="font-size:10px;padding:3px 8px;margin-right:4px;" onclick="fecharModal('modal-audit-manual');abrirModalManual('${m._id}')">✎</button>
+          <button class="btn-topo danger" style="font-size:10px;padding:3px 8px;" onclick="_deletarManualPorId('${m._id}')">🗑</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+  document.getElementById('modal-audit-manual').classList.remove('hidden');
+}
+
+function _deletarManualPorId(id){
+  if(!confirm('Excluir esta entrada manual?')) return;
+  CONFIG.registrosManuais=(CONFIG.registrosManuais||[]).filter(x=>x._id!==id);
+  processarERenderizar();
+  if(getBinId()&&getMasterKey()) syncPush();
+  _abrirAuditManual();
+}
 </script>
 
 <!-- Botão qualidade discreta -->
