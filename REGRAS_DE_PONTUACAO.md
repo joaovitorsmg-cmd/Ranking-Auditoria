@@ -13,8 +13,10 @@ Toda vez que uma filial passa por uma auditoria, ela recebe um **Score daquela a
 |---|---|---|
 | **Semente** | 40 pontos | Tudo ou nada: a filial só ganha os 40 pontos se **não tiver nenhuma pendência** (Sem Pendência = 0). Se houver qualquer pendência, o critério vale **0**. |
 | **Pedido** | 30 pontos | Tudo ou nada: a filial só ganha os 30 pontos se o **% de Pedido Confirmado for ≥ 95%**. Abaixo de 95%, o critério vale **0** — não existe pontuação parcial. |
-| **Vencidos** | 20 pontos | Calculado pelo **% do valor vencido sobre o faturamento da filial no período**. Quanto menor o % de vencidos sobre o faturamento, mais próximo dos 20 pontos. Faixas: até 0,5% = pontuação máxima; até 1% = 35 pts (escala interna); até 2% = 15 pts; acima de 2% = 0. |
+| **Vencidos** | 20 pontos | Calculado pelo **% do valor vencido sobre o faturamento da filial no período**. Quanto menor o % de vencidos sobre o faturamento, mais próximo dos 20 pontos. A escala é em degraus, não linear: **0% = 20 pts (máximo)**; até 0,05% = 19 pts; até 0,1% = 17 pts; até 0,25% = 14 pts; até 0,5% = 11 pts; até 1% = 7 pts; até 2% = 3 pts; acima de 2% = 0. Ou seja, só um período **sem nenhum vencido** garante a pontuação máxima — qualquer valor de vencidos, por menor que seja, já reduz a nota. |
 | **Canhoto** | 10 pontos | Tudo ou nada: a filial só ganha os 10 pontos se o **% de Canhoto Confirmado for ≥ 95%**. Abaixo de 95%, o critério vale **0**. |
+
+**Sobre dado faltante:** se o período não tiver faturamento carregado, ou tiver arquivo de Pedido mas nenhum arquivo de Vencidos, o critério Vencidos assume 20/20 (equivalente a "comprovadamente zero vencidos") em vez de ficar indefinido. Isso evita penalizar a filial por uma falha de importação, mas também significa que a nota não reflete um % real medido — o painel sinaliza esses casos na Central de Qualidade (aba com o ícone de verificação) para quem for auditar os números de perto.
 
 **Regra importante (tudo ou nada):** Pedido e Canhoto **não têm pontuação proporcional**. Não existe "quase lá" — se a filial fechar a auditoria com 94% de Pedido confirmado, por exemplo, o critério Pedido vale **zero** naquela auditoria, mesmo estando muito próximo de 95%. É obrigatório atingir ≥95% em **todas** as auditorias do ano para que a média anual desses critérios se mantenha alta.
 
