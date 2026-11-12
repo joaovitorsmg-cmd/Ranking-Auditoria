@@ -433,6 +433,7 @@ body,#topo,.kpi,.chart-card,.rank-wrap,.modal-box,.arq-card,.drop-zone,.btn-topo
   <input type="file" id="inp-import" accept=".json,.xlsx,.xls" multiple style="display:none;" onchange="processarArquivosImportados(this)">
   <input type="file" id="inp-backup" accept=".json" style="display:none;" onchange="lerBackupJSON(this)">
   <input type="file" id="inp-fat-json" accept=".json" style="display:none;" onchange="processarFatJSON(this)">
+  <input type="file" id="inp-trienio-xls" accept=".xls,.xlsx" style="display:none;" onchange="processarTrienioXLS(this)">
   <input type="file" id="inp-nota-auditoria" accept=".json,.xlsx,.xls" style="display:none;" onchange="processarNotaAuditoriaArquivo(this)">
 </div>
 
@@ -457,10 +458,12 @@ body,#topo,.kpi,.chart-card,.rank-wrap,.modal-box,.arq-card,.drop-zone,.btn-topo
       <strong style="color:var(--text);">Como preencher:</strong><br>
       <span style="display:block;margin-left:8px;">① <strong>Via Relatório CFOP (recomendado):</strong> use o botão <strong>📥 Importar</strong> no cabeçalho e selecione o arquivo <code>.xls</code> exportado do sistema (Resumo CFOP). O painel reconhece e acumula automaticamente.</span>
       <span style="display:block;margin-left:8px;margin-top:4px;">② <strong>Via arquivo JSON salvo:</strong> se você exportou uma base JSON de faturamento de uma sessão anterior, importe abaixo.</span>
-      <span style="display:block;margin-left:8px;margin-top:4px;">③ <strong>Manual:</strong> para ajuste pontual, preencha o valor mensal de uma filial nos campos abaixo.</span>
+      <span style="display:block;margin-left:8px;margin-top:4px;">③ <strong>Via Triênio XLS:</strong> importe a planilha de triênio de vendas (formato Região/Realizado). O valor anual é dividido por 12 e distribuído em todos os meses do ano de referência.</span>
+      <span style="display:block;margin-left:8px;margin-top:4px;">④ <strong>Manual:</strong> para ajuste pontual, preencha o valor mensal de uma filial nos campos abaixo.</span>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
       <button class="btn-modal sec" onclick="document.getElementById('inp-fat-json').click()" title="Importar arquivo JSON com histórico de faturamento por filial e período (gerado pelo próprio painel em sessão anterior)">📂 Importar JSON salvo</button>
+      <button class="btn-modal sec" onclick="document.getElementById('inp-trienio-xls').click()" title="Importar planilha XLS do triênio de vendas (formato: Região / Realizado). Distribui o valor anual em 12 meses do ano de referência.">📊 Importar Triênio XLS</button>
       <button class="btn-modal sec" onclick="fecharModal('modal-fat');abrirFatHistoricoView()" title="Ver tabela completa do faturamento carregado (Filial × Período)">👁 Ver Base Carregada</button>
     </div>
     <div class="modal-sub">Ajuste manual por filial (opcional — sobrescrito pelo CFOP ou JSON):</div>
@@ -481,6 +484,24 @@ body,#topo,.kpi,.chart-card,.rank-wrap,.modal-box,.arq-card,.drop-zone,.btn-topo
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
       <button class="btn-modal sec" onclick="fecharModal('modal-fat-base')">Cancelar</button>
       <button class="btn-modal primary" onclick="confirmarFatBase()">✔ Importar e Acumular</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRÉVIA TRIÊNIO XLS -->
+<div class="modal-overlay hidden" id="modal-trienio-xls">
+  <div class="modal-box" style="max-width:720px;">
+    <div class="modal-title">📊 Importar Triênio XLS — Prévia</div>
+    <div class="modal-sub" id="trienio-sub">Verificando arquivo...</div>
+    <div style="margin:10px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <label style="font-size:12px;color:var(--text2);">Ano de referência:</label>
+      <input type="number" id="trienio-ano" min="2020" max="2035" style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:13px;" oninput="_trienioAtualizarPrevia()">
+      <span style="font-size:11px;color:var(--text3);">O valor anual será dividido por 12 e distribuído em todos os meses do ano selecionado.</span>
+    </div>
+    <div id="trienio-preview" style="max-height:400px;overflow:auto;margin-top:8px;font-size:11px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn-modal sec" onclick="fecharModal('modal-trienio-xls')">Cancelar</button>
+      <button class="btn-modal primary" onclick="confirmarTrienioXLS()">✔ Importar e Acumular</button>
     </div>
   </div>
 </div>
@@ -5301,6 +5322,114 @@ window.addEventListener('DOMContentLoaded', ()=>{
     if (ABA_ATUAL==='config') renderAbaConfig();
     const total = Object.values(FAT_HISTORICO).reduce(function(s,v){ return s+Object.keys(v).length; }, 0);
     alert('Base importada! ' + total + ' registros de faturamento no histórico.');
+  }
+
+  // ── TRIÊNIO XLS ──────────────────────────────────────────────────────────
+  let _trienioRawLinhas = []; // [{sigla, loja, cidadeXls, valorAnual}]
+
+  function _normStr(s) {
+    return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim().toUpperCase();
+  }
+
+  function _parseValorTrienio(v) {
+    return parseFloat(String(v||'').replace(/R\$\s*/,'').replace(/\./g,'').replace(',','.').trim()) || 0;
+  }
+
+  function _cidadeDeRegiao(r) {
+    const s = _normStr(String(r||''));
+    const idx = s.indexOf('VENDA ');
+    return idx >= 0 ? s.slice(idx + 6).trim() : s;
+  }
+
+  function _trienioCidadeParaSigla() {
+    const map = {};
+    Object.entries(BASE_FILIAIS).forEach(function([sig, f]) {
+      map[_normStr(f.loja)] = sig;
+    });
+    map['GOIANIA'] = 'MTZ'; // Matriz está em Goiânia
+    return map;
+  }
+
+  function processarTrienioXLS(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:false});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
+        if (!rows || rows.length < 2) { alert('Planilha vazia ou inválida.'); return; }
+        const cidadeMap = _trienioCidadeParaSigla();
+        _trienioRawLinhas = [];
+        const semMapa = [];
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          const reg = String(row[0]||'').trim();
+          if (!reg) continue;
+          const cidade = _cidadeDeRegiao(reg);
+          const valor = _parseValorTrienio(row[1]);
+          if (!valor) continue;
+          const sigla = cidadeMap[cidade];
+          if (sigla) {
+            _trienioRawLinhas.push({sigla, loja: BASE_FILIAIS[sigla]?.loja || sigla, cidadeXls: cidade, valorAnual: valor});
+          } else {
+            semMapa.push(cidade);
+          }
+        }
+        document.getElementById('trienio-ano').value = CONFIG.ano || new Date().getFullYear();
+        _trienioAtualizarPrevia(semMapa);
+        fecharModal('modal-fat');
+        document.getElementById('modal-trienio-xls').classList.remove('hidden');
+      } catch(err) { alert('Erro ao ler XLS: ' + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function _trienioAtualizarPrevia(semMapa) {
+    const ano = parseInt(document.getElementById('trienio-ano')?.value) || CONFIG.ano || new Date().getFullYear();
+    const mensal = function(v) { return Math.round(v/12*100)/100; };
+    const fmtBR = function(v) { return 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); };
+    const sub = _trienioRawLinhas.length + ' filiais mapeadas · ' + (semMapa ? semMapa.length + ' não reconhecidas' : '');
+    document.getElementById('trienio-sub').innerHTML =
+      'Arquivo lido &nbsp;·&nbsp; <strong>' + _trienioRawLinhas.length + '</strong> filiais' +
+      (semMapa && semMapa.length ? ' &nbsp;·&nbsp; <span style="color:var(--amber-dk)">' + semMapa.length + ' não reconhecidas</span>' : '');
+    const header = '<tr style="background:var(--bg3);"><th style="padding:4px 8px;text-align:left;font-size:10px;">Sigla</th><th style="padding:4px 8px;text-align:left;font-size:10px;">Filial</th><th style="padding:4px 8px;text-align:right;font-size:10px;">Valor Anual</th><th style="padding:4px 8px;text-align:right;font-size:10px;">Mensal (÷12)</th></tr>';
+    const rows = _trienioRawLinhas.map(function(r) {
+      const jaMes = Object.keys((FAT_HISTORICO[r.sigla]||{})).filter(function(p){ return p.endsWith('/'+ano); }).length;
+      const warn = jaMes > 0 ? ' <span style="color:var(--amber-dk)" title="' + jaMes + ' mês(es) já existentes para este ano — serão substituídos">⚠</span>' : '';
+      return '<tr><td style="padding:3px 8px;font-weight:700;">' + r.sigla + '</td>' +
+        '<td style="padding:3px 8px;">' + r.loja + warn + '</td>' +
+        '<td style="padding:3px 8px;text-align:right;">' + fmtBR(r.valorAnual) + '</td>' +
+        '<td style="padding:3px 8px;text-align:right;color:var(--green-dk);">' + fmtBR(mensal(r.valorAnual)) + '</td></tr>';
+    }).join('');
+    const semMapaHTML = semMapa && semMapa.length
+      ? '<div style="margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:6px;font-size:10.5px;color:var(--amber-dk);"><strong>Não mapeadas (ignoradas):</strong> ' + semMapa.join(', ') + '</div>'
+      : '';
+    document.getElementById('trienio-preview').innerHTML =
+      '<table style="border-collapse:collapse;width:100%;"><thead>' + header + '</thead><tbody>' + rows + '</tbody></table>' + semMapaHTML;
+  }
+
+  function confirmarTrienioXLS() {
+    if (!_trienioRawLinhas.length) return;
+    const ano = parseInt(document.getElementById('trienio-ano')?.value) || CONFIG.ano || new Date().getFullYear();
+    let qtd = 0;
+    _trienioRawLinhas.forEach(function(r) {
+      const mensal = Math.round(r.valorAnual/12*100)/100;
+      if (!FAT_HISTORICO[r.sigla]) FAT_HISTORICO[r.sigla] = {};
+      for (let m = 1; m <= 12; m++) {
+        const p = String(m).padStart(2,'0') + '/' + ano;
+        FAT_HISTORICO[r.sigla][p] = mensal;
+        qtd++;
+      }
+    });
+    _trienioRawLinhas = [];
+    fecharModal('modal-trienio-xls');
+    processarERenderizar();
+    if (ABA_ATUAL==='config') renderAbaConfig();
+    const total = Object.values(FAT_HISTORICO).reduce(function(s,v){ return s+Object.keys(v).length; }, 0);
+    alert('Triênio importado! ' + qtd + ' períodos adicionados (' + (qtd/12|0) + ' filiais × 12 meses). Total histórico: ' + total + ' registros.');
   }
 
   function processarNotaAuditoriaArquivo(input) {
