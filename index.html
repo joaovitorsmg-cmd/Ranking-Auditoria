@@ -4825,14 +4825,16 @@ function limparTudo() {
 // SINCRONIZAÇÃO SUPABASE
 // ============================================================
 const SB_CFG_KEY = 'agroquima_ranking_sb_cfg';
+const SB_DEFAULT_URL = 'https://yeburvkopwbmnfcmthtz.supabase.co';
+const SB_DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllYnVydmtvcHdibW5mY210aHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2ODk5NDMsImV4cCI6MjEwODI2NTk0M30.3t-4Q8SM9XV0OdQLHktMUmKNItg1byBkyv0HGN3B-74';
 let sbSyncing = false;
 let sbPullOk = false;
 
 function getSbCfg(){ try{return JSON.parse(localStorage.getItem(SB_CFG_KEY)||'{}');}catch(e){return {};} }
 function saveSbCfg(cfg){ localStorage.setItem(SB_CFG_KEY, JSON.stringify({...getSbCfg(),...cfg})); }
-function getSbUrl(){ return getSbCfg().url||''; }
-function getSbKey(){ return getSbCfg().key||''; }
-function sbIsConfigured(){ return !!(getSbUrl()&&getSbKey()); }
+function getSbUrl(){ return getSbCfg().url||SB_DEFAULT_URL; }
+function getSbKey(){ return getSbCfg().key||SB_DEFAULT_KEY; }
+function sbIsConfigured(){ return true; }
 
 function compactarPayload(obj){
   const json=JSON.stringify(obj);
@@ -4946,10 +4948,6 @@ async function syncPull(){
 }
 
 async function syncPush(explicito=false){
-  if(!sbIsConfigured()){
-    if(explicito) alert('Configure a URL e Key do Supabase em ⚙ Configurações.');
-    return;
-  }
   if(sbSyncing) return;
   if(!sbPullOk){
     if(!explicito){
